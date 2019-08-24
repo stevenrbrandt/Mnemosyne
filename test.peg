@@ -1,17 +1,27 @@
 skipper=([ \t\n\r]|\#.*)*\b
-keywords=(for|if|while|else|elif|end|fun|to)
+keywords=(for|if|while|else|elif|end|fun|to|from)
 name=(?!{-keywords}\b)[a-zA-Z]+
 str = "(\\[\\\"]|[^\\"])*"
 op = ({-cmp}|[-+%*/])
 expr = {val}( {op} {val})?
 num = [0-9]+
-assignOp = [-+*/%]?=
+assignOp = [-+*/%:]?=
 fun = {name} \( {vals} \)
-val = ({fun}|{name}|{num}|{str}|\( {expr} \))
-assign={name} {assignOp} {expr}
+array = \[ {vals} \]
+import = from {str} import {args}
+comprehension = \[ {expr} for {name} in {expr} to {expr} \]
+pair = ({str}|{name}) : {expr}
+pairs = ({pair}( , {pair})*)?
+struct = \{ {pairs} \}
+elem = {name} \[ {expr} \]
+lambda = fun \( {args} \) {body} {end}
+val = ({lambda}|{fun}|{name}|{num}|{str}|\( {expr} \)|{array}|{elem}|{struct}|{comprehension})
+assign=({elem}|{name}) {assignOp} {expr}
 call = {name} \( {vals} \)
 for = for {name} in {expr} to {expr}
-whilestmt = while {expr} {-body} {end}
+while = while {expr}
+whilestmt = {while} {-body} {end}
+returnstmt = return {expr}
 cmp = (<=|>=|==|<|>)
 if = if {expr}
 elif = elif {name} [<>=] {num}
@@ -22,6 +32,6 @@ start_fn = fun {name} \( {args} \)
 end = end
 ifstmt = {if} ({-body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt})
+body = ({assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt}|{returnstmt})
 fun_def = {start_fn} ({-body} )*{end}
-prog = ^( {assign}| {-fun_def})* $
+prog = ^( {assign}| {-fun_def}| {-import})* $
