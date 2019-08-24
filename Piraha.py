@@ -182,7 +182,8 @@ class Bracket:
         out += ")"
         return out
 
-    def __init__(self,neg):
+    def __init__(self,neg=False):
+        assert type(neg)==bool
         self.neg = neg
         self.ranges = []
 
@@ -227,11 +228,13 @@ class Lookup:
       return b
 
     def __init__(self,name,g):
-      if re.match(r's/^-.*//',name):
+      g = re.match(r'^-(.*)',name)
+      if g:
         self.capture = False
+        self.name = g.group(1)
       else:
         self.capture = True
-      self.name = name
+        self.name = name
       self.g = g
 
 class Break(Exception):
@@ -558,10 +561,10 @@ class Matcher:
       return ret
 
     def groupCount(self):
-      return len(self.gr.groupCount())
+      return len(self.gr.children)
 
     def group(self,i):
-      return self.g.group(i)
+      return self.gr.children[i]
 
     def fail(self,c):
       if self.textPos > self.maxTextPos:
@@ -1150,11 +1153,52 @@ def compilePattern(pattern):
     # Convert a parse tree for a Piraha expression
     # into the Piraha data structures used to parse
     # code.
-    print(m.gr.dump(''))
     return compile(m.gr,0,grammar)
   else:
     m.showError()
     raise Exception()
+
+def parse(peg,src):
+  g,rule = parse_peg_src(peg)
+  return parse_src(g,rule,src)
+
+# Open, read and parse a peg rule file.
+def parse_peg_file(peg):
+  with open(peg) as fd:
+    peg_contents = fd.read()
+  return parse_peg_src(peg_contents)
+
+# Compile a file containing Piraha rules
+def compileFile(fname):
+  with open(fname,"r") as fd:
+    buffer = fd.read()
+  g = Grammar()
+  # The rules to compile a Piraha rule file
+  # stored as a Piraha parse tree.
+  grammar = fileparserGenerator()
+  m = Matcher(grammar,"file",buffer)
+  b = m.matches()
+  if not b:
+    raise Exception("match failed ".m.showError())
+
+  for i in range(m.groupCount()):
+    rule = m.group(i)
+    # Convert the parse tree for each Piraha rule
+    # into the Piraha data structures used to parse
+    # code.
+    ptmp = compile(rule.group(1), 0, grammar)
+    nm = rule.group(0).substring()
+    g.patterns[nm] = ptmp
+    # Set the default rule.
+    g.default_rule = nm
+  return g
+
+# Parse a peg rule file, return
+# a grammar and the default file
+def parse_peg_src(peg_contents):
+  g = Grammar()
+  rule = compileFile(g,peg_contents)
+  return (g,rule)
 
 # Given a grammar and a rule, parse
 # a source string which should match the rule.
@@ -1163,15 +1207,20 @@ def parse_src(g,rule,src):
     src_contents = fd.read()
   return Matcher(g,rule,src_contents)
 
-g = Grammar()
-g.patterns["foo"] = compilePattern("^.*")
-g.patterns["baz"] = compilePattern(".*$")
-g.patterns["any"] = compilePattern("({foo}|{bar}|{baz})+")
-g.patterns["bar"] = compilePattern("\n")
-print(g.patterns["any"].diag())
-m = Matcher(g,"any","hello\nworld")
+#g = Grammar()
+#g.patterns["foo"] = compilePattern("^.*")
+#g.patterns["baz"] = compilePattern(".*$")
+#g.patterns["any"] = compilePattern("({foo}|{bar}|{baz})+")
+#g.patterns["bar"] = compilePattern("\n")
+#m = Matcher(g,"any","hello\nworld")
+#if m.matches():
+#    print(m.gr.dump())
+#else:
+#    print(m.showError())
+#    raise Exception()
+g = compileFile("test.peg")
+m = Matcher(g,g.default_rule,"a=b")
 if m.matches():
     print(m.gr.dump())
 else:
     print(m.showError())
-    raise Exception()
