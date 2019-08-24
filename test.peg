@@ -1,0 +1,25 @@
+skipper=([ \t\n\r]|\#.*)*\b
+keywords=(for|if|while|else|elif|end|fun)
+name=(?!{-keywords}\b)[a-zA-Z]+
+str = "(\\[\\\"]|[^\\"])*"
+op = (cmp|[-+%*/])
+expr = {val}( {op} {val})?
+num = [0-9]+
+assignOp = [-+*/%]?=
+val = ({name}|{num}|{str}|\( {expr} \))
+assign={name} {assignOp} {val}
+call = {name} \( {vals} \)
+for = for {name} in {val} to {val}
+cmp = (<=|>=|==|<|>)
+if = if {name} {cmp} {num}
+elif = elif {name} [<>=] {num}
+else = else
+args = ({name}( , {name})*)?
+vals = ({expr}( , {expr})*)?
+start_fn = fun {name} \( {args} \)
+end = end
+ifstmt = {if} ({-body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
+forstmt = {for} ({-body} )*{end}
+body = ({assign}|{call}|{-ifstmt}|{-forstmt})
+fun_def = {start_fn} ({-body} )*{end}
+prog = ^( {assign}| {-fun_def})* $

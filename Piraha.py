@@ -40,9 +40,7 @@ def expand_char(k):
     k = "BACKSPACE"
   elif k == "\e":
     k = "ESC"
-  else:
-    k = "'${%s}'" % k;
-  return k
+  return "'"+k+"'"
 
 class Literal:
     def possibly_zero(self):
@@ -144,7 +142,7 @@ class Bracket:
         # The upper range should be greater than or
         # equal to the lower.
         if r[0] > r[1]:
-            raise Exception("bad range")
+            raise Exception("bad range: "+chr(r[0])+" to "+chr(r[1]))
         a += [r]
         return self
 
@@ -242,6 +240,32 @@ class Break(Exception):
 
 class Fail(Exception):
     pass
+
+class NegLookAhead:
+    # This pattern represents a negative
+    # lookahead assertion. It is roughly
+    # the same as it is in perl.
+    # E.g. the pattern "cat(?!s)" will match
+    # the word cat, but not if it's followed
+    # by an s.
+
+    def diag(self):
+      return "NegLookAhead("+self.pat.diag()+")"
+
+    def match(self,m):
+      p  = m.textPos
+      h  = m.hash
+      mx = m.maxTextPos
+      b = self.pat.match(m)
+      m.textPos=p
+      m.maxTextPos=mx
+      m.hash = h
+      return not b
+
+    def __init__(self,pat,ignc=False,gram=None):
+      self.pat = pat
+      self.ignCase = ignc
+      self.gram = gram
 
 class Multi:
     # This pattern element is used to match the
@@ -357,7 +381,7 @@ class End:
     # a string.
 
     def match(self,m):
-      return m.textPos==len(m.text)
+      return m.textPos==len(m.text) or (m.textPos+1==len(m.text) and m.text[m.textPos]=='\n')
 
     def diag(self):
       return "End()"
@@ -472,6 +496,27 @@ class Group:
       self.start = start
       self.end = end
       self.children = []
+
+class Boundary:
+    # This pattern element matches a "boundary"
+    # either the start of a string, the end of
+    # a string, or a transition between a c-identifier
+    # character and a non c-identifier character.
+
+    def match(self,m):
+      if m.textPos==len(m.text) or m.textPos==0:
+        return True
+      bf = m.text[m.textPos-1]
+      af = m.text[m.textPos]
+      if re.match(r'\w',bf) and re.match(r'\w',af):
+        return False
+      return True
+
+    def diag(self):
+      return "Boundary()"
+
+    def __init__(self):
+        pass
  
 class Grammar:
     def __init__(self):
@@ -509,20 +554,23 @@ class Matcher:
       # Don't worry about comment characters
       for key in [" ","#","\t","\n","\b","\r"]:
         if key in hash:
-            del hash[key]
+          del hash[key]
 
-      c = txt[pos:1+pos]
+      if pos >= len(txt):
+        c = txt[-1]
+      else:
+        c = txt[pos]
       if c == "\n":
         post = ""
-      print(pre,c,post,sep='',end='')
-      g = re.match(r'.*$',pre)
-      print(" " * len(g.group(0)),"^\n",sep='',end='')
-      print(" " * len(g.group(0)),"| here\n",sep='',end='')
+      print(pre,c,post,sep='')
+      g = re.search(r'.*$',pre)
+      print(" " * len(g.group(0)),"^",sep='')
+      print(" " * len(g.group(0)),"| here",sep='')
       out = []
       count = []
       ks = sorted(hash.keys()) #sort keys %hash;
       for k in ks:
-        if re.match(r'[b-zB-Z1-9]',k) and ord(k) == ord(out[-1]) + count[-1]:
+        if len(out)>0 and re.match(r'[b-zB-Z1-9]',k) and ord(k) == ord(out[-1]) + count[-1]:
           count[-1]+=1
         else:
           out += [k]
@@ -534,11 +582,11 @@ class Matcher:
           out2 += [expand_char(k)]
         elif count[i]==2:
           k = out[i]
-          out2 += ["'${"+k+"}'"]
+          out2 += ["'"+k+"'"]
           out2 += ["'"+chr(ord(k)+1)+"'"]
         else:
           k = out[i]
-          out += ["'"+k+"' to '"+chr(ord(k)+count[i]-1)+"'"]
+          out2 += ["'"+k+"' to '"+chr(ord(k)+count[i]-1)+"'"]
       print("FOUND CHARACTER: ",expand_char(c),"\n",end='',sep='')
       print("EXPECTED CHARACTER(S): ",",".join(out2),"\n",end='',sep='')
 
@@ -578,8 +626,10 @@ class Matcher:
         for r in c:
           for n in range(r[0],r[1]+1):
             self.hash[chr(n)]=1;
-      else:
+      elif type(c) == str and len(c)==1:
         self.hash[c] = 1;
+      else:
+        raise Exception(str(c))
 
     def __init__(self,grammar,pname,text):
         self.text = text
@@ -1179,7 +1229,8 @@ def compileFile(fname):
   m = Matcher(grammar,"file",buffer)
   b = m.matches()
   if not b:
-    raise Exception("match failed ".m.showError())
+    m.showError()
+    raise Exception("match failed")
 
   for i in range(m.groupCount()):
     rule = m.group(i)
@@ -1219,8 +1270,10 @@ def parse_src(g,rule,src):
 #    print(m.showError())
 #    raise Exception()
 g = compileFile("test.peg")
-m = Matcher(g,g.default_rule,"a=b")
+with open("test.in") as fd:
+    fc = fd.read()
+m = Matcher(g,g.default_rule,fc)
 if m.matches():
     print(m.gr.dump())
 else:
-    print(m.showError())
+    m.showError()
