@@ -1,9 +1,13 @@
 a = 3
 
 fun foo(a,b)
-  b = 6
+  b = 6*(6+2)
   b += 2
   if b == 8
-    print(c,"str")
+    print(c,"str",sin(3*pi))
+  end
+  i = 0
+  while i < 3
+    i += 1
   end
 end

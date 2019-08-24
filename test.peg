@@ -1,17 +1,19 @@
 skipper=([ \t\n\r]|\#.*)*\b
-keywords=(for|if|while|else|elif|end|fun)
+keywords=(for|if|while|else|elif|end|fun|to)
 name=(?!{-keywords}\b)[a-zA-Z]+
 str = "(\\[\\\"]|[^\\"])*"
-op = (cmp|[-+%*/])
+op = ({-cmp}|[-+%*/])
 expr = {val}( {op} {val})?
 num = [0-9]+
 assignOp = [-+*/%]?=
-val = ({name}|{num}|{str}|\( {expr} \))
-assign={name} {assignOp} {val}
+fun = {name} \( {vals} \)
+val = ({fun}|{name}|{num}|{str}|\( {expr} \))
+assign={name} {assignOp} {expr}
 call = {name} \( {vals} \)
-for = for {name} in {val} to {val}
+for = for {name} in {expr} to {expr}
+whilestmt = while {expr} {-body} {end}
 cmp = (<=|>=|==|<|>)
-if = if {name} {cmp} {num}
+if = if {expr}
 elif = elif {name} [<>=] {num}
 else = else
 args = ({name}( , {name})*)?
@@ -20,6 +22,6 @@ start_fn = fun {name} \( {args} \)
 end = end
 ifstmt = {if} ({-body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({assign}|{call}|{-ifstmt}|{-forstmt})
+body = ({assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt})
 fun_def = {start_fn} ({-body} )*{end}
 prog = ^( {assign}| {-fun_def})* $
