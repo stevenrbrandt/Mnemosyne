@@ -235,7 +235,23 @@ class Lookup:
         self.name = name
       self.g = g
 
-class Break(Exception):
+class Break:
+    # Reprents a {brk} pattern element. This
+    # pattern element triggers an exception to
+    # be thrown, and allows the pattern matcher
+    # to escape from processing a * pattern.
+    # It's like a break from a for/while loop.
+
+    def diag(self):
+      return "Break()"
+
+    def match(self,m):
+      raise BreakOut()
+
+    def __init__(self):
+        pass
+
+class BreakOut(Exception):
     pass
 
 class Fail(Exception):
@@ -267,6 +283,32 @@ class NegLookAhead:
       self.ignCase = ignc
       self.gram = gram
 
+class LookAhead:
+    # This pattern represents a 
+    # lookahead assertion. It is roughly
+    # the same as it is in perl.
+    # E.g. the pattern "cat(?=s)" will match
+    # the word cat, but only if it's followed
+    # by an s.
+
+    def diag(self):
+      return "LookAhead("+self.pat.diag()+")"
+
+    def match(self,m):
+      p  = m.textPos
+      h  = m.hash
+      mx = m.maxTextPos
+      b = self.pat.match(m)
+      m.textPos=p
+      m.maxTextPos=mx
+      m.hash = h
+      return b
+
+    def __init__(self,pat,ignc=False,gram=None):
+      self.pat = pat
+      self.ignCase = ignc
+      self.gram = gram
+
 class Multi:
     # This pattern element is used to match the
     # pattern it contains multiple times. It is
@@ -285,7 +327,7 @@ class Multi:
             m.gr.children = m.gr.children[0:nchildren]
             rc = i >= self.mn
             return rc
-        except Break as e:
+        except BreakOut as e:
             rc = i >= self.mn
             return rc
       return True
@@ -1219,10 +1261,12 @@ def parse_peg_file(peg):
   return parse_peg_src(peg_contents)
 
 # Compile a file containing Piraha rules
-def compileFile(fname):
+def compileFile(g,fname):
   with open(fname,"r") as fd:
     buffer = fd.read()
-  g = Grammar()
+  return compileSrc(g,buffer)
+
+def compileSrc(g,buffer):
   # The rules to compile a Piraha rule file
   # stored as a Piraha parse tree.
   grammar = fileparserGenerator()
@@ -1242,13 +1286,13 @@ def compileFile(fname):
     g.patterns[nm] = ptmp
     # Set the default rule.
     g.default_rule = nm
-  return g
+  return g.default_rule
 
 # Parse a peg rule file, return
 # a grammar and the default file
 def parse_peg_src(peg_contents):
   g = Grammar()
-  rule = compileFile(g,peg_contents)
+  rule = compileSrc(g,peg_contents)
   return (g,rule)
 
 # Given a grammar and a rule, parse
@@ -1269,11 +1313,95 @@ def parse_src(g,rule,src):
 #else:
 #    print(m.showError())
 #    raise Exception()
-g = compileFile("test.peg")
-with open("test.in") as fd:
+
+g = Grammar()
+compileSrc(g,"c=cat(?=s)")
+m = Matcher(g,g.default_rule,"cats")
+
+if m.matches():
+    print(m.gr.dump())
+else:
+    m.showError()
+
+g = Grammar()
+compileFile(g,"test.peg")
+with open("hello.in") as fd:
     fc = fd.read()
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
     print(m.gr.dump())
 else:
     m.showError()
+
+def feval(s):
+    pre = []
+    vals = []
+    nm = s.getPatternName()
+    if nm == "vals":
+        for i in range(s.groupCount()):
+            vals += [feval(s.group(i))]
+        return (pre, vals)
+    if nm in ["expr", "val"]:
+        if s.groupCount()==1:
+            return feval(s.group(0))
+        else:
+            ty1, arg1 = feval(s.group(0))
+            op = feval(s.group(1))
+            ty2, arg2 = feval(s.group(2))
+            etxt = ty1+op+ty2
+            if etxt == "num+num":
+                return int(arg1)+int(arg2)
+            elif etxt == "num-num":
+                return int(arg1)-int(arg2)
+            elif etxt == "num*num":
+                return int(arg1)*int(arg2)
+            elif etxt == "num/num":
+                return int(arg1)//int(arg2)
+            raise Exception(etxt)
+    if nm == "str":
+        stxt = s.substring()
+        return stxt[1:-1]
+    if nm == "op":
+        return s.substring()
+    if nm in ["real", "num"]:
+        return [nm, s.substring()]
+    raise Exception(nm)
+
+class Interp:
+    def __init__(self,gr):
+        self.gr = gr
+        self.pc = -1
+        self.funs = {}
+        self.globs = {}
+    def step(self):
+        assert self.pc >= 0
+        print("step:",self.pc)
+        s = self.gr.group(self.pc)
+        nm = s.getPatternName()
+        if nm == "start_fn":
+            self.pc += 1
+            return True
+        if nm == "call":
+            fnm = s.group(0).substring()
+            if fnm == "print":
+                for i in range(1,s.groupCount()):
+                    pre, vals = feval(s.group(i))
+                    for v in vals:
+                        print(v,end='')
+                print()
+        return False
+
+interp = Interp(m.gr)
+
+# Find functions
+for i in range(m.groupCount()):
+    g = m.group(i)
+    nm = g.getPatternName() 
+    if nm == "start_fn":
+        fnm = g.group(0).substring()
+        if fnm == "main":
+            interp.pc = i
+        interp.funs[fnm] = i
+
+while interp.step():
+    pass
