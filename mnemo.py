@@ -224,6 +224,7 @@ class Interp:
                     self.pc = fpc
                 else:
                     self.ends = self.ends[:-1]
+                    del self.vars[-1][loopvar]
                 self.pc += 1
             return True
         elif nm == "returnstmt":
@@ -235,6 +236,7 @@ class Interp:
             loopvar = s.group(0).substring()
             startval = self.getval(s.group(1))
             endval = self.getval(s.group(2))
+            assert loopvar not in self.vars[-1],"Loop attempts to redefine "+loopvar
             self.vars[-1][loopvar] = Var(loopvar,startval,"const")
             self.ends += [("for",loopvar,startval,endval,self.pc)]
             self.pc += 1
