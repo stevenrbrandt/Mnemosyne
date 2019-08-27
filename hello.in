@@ -1,0 +1,18 @@
+# First program
+const a := 4+1
+
+const b := a+2
+
+fun foo()
+    print("Foo!")
+end
+
+fun add(a,b)
+    return a+b
+end
+
+fun main(args)
+    print("Hello: ",a+2," ",3-b," ",1*4," ",1/4)
+    foo()
+    print("add: ",add(3,4))
+end

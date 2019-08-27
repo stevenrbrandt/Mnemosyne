@@ -7,18 +7,21 @@ expr = {val}( {op} {val})?
 num = [0-9]+
 exp = (e[+-]?[0-9]+)
 real = ([0-9]+\.[0-9]*{-exp}?|\.[0-9]+{-exp}?|[0-9]+{-exp})
-assignOp = [-+*/%:]?=
 fun = {name} \( {vals} \)
 array = \[ {vals} \]
 import = from {str} import {args}
 comprehension = \[ {expr} for {name} in {expr} to {expr} \]
-pair = ({str}|{name}) : {expr}
+pair = {expr} : {expr}
 pairs = ({pair}( , {pair})*)?
 struct = \{ {pairs} \}
-elem = {name} \[ {expr} \]
+elem = {var} \[ {expr} \]
 lambda = fun \( {args} \) {body} {end}
-val = ({lambda}|{fun}|{name}|{real}|{num}|{str}|\( {expr} \)|{array}|{elem}|{struct}|{comprehension})
-assign=({elem}|{name}) {assignOp} {expr}
+var = {name}
+val = ({lambda}|{fun}|{var}|{real}|{num}|{str}|\( {expr} \)|{array}|{elem}|{struct}|{comprehension})
+qual = (atomic|regular|safe|const)
+def = {qual} ({var}|{elem}) := {expr}
+assignOp = [-+*/%]?=
+assign=({elem}|{var}) {assignOp} {expr}
 call = {name} \( {vals} \)
 for = for {name} in {expr} to {expr}
 while = while {expr}
@@ -34,7 +37,7 @@ start_fn = fun {name} \( {args} \)
 end = end
 ifstmt = {if} ({-body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt}|{returnstmt})
+body = ({def}|{assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt}|{returnstmt})
 fun_def = {start_fn} ({-body} )*{end}
 random = {brk}
-prog = ^( {assign}| {-fun_def}| {-import})* $
+prog = ^( {def}| {-fun_def}| {-import})* $
