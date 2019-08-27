@@ -35,6 +35,7 @@ class Interp:
     def __init__(self,gr):
         self.gr = gr
         self.pc = -1
+        self.ends = []
         self.stack = []
         self.rets = []
         self.funs = {}
@@ -110,6 +111,7 @@ class Interp:
         self.stack += [self.pc+1]
         self.rets += [retkey]
         self.pc = funinst
+        self.ends += [("fun",)]
     def end_call(self,retval):
         self.indent -= 1
         print(INDENT * self.indent,colored("end call","green"),sep='')
@@ -131,13 +133,22 @@ class Interp:
         if nm == "load":
             print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
         elif nm == "start_fn":
-            pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
+            print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
         else:
             print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
-            while s.getPatternName() != "end":
-                self.pc += 1
-                s = self.inst[self.pc]
+            end_count = 1
+            while True:
+                nm = s.getPatternName()
+                if nm == "for":
+                    end_count += 1
+                elif nm == "end":
+                    end_count -= 1
+                if end_count > 0:
+                    self.pc += 1
+                    s = self.inst[self.pc]
+                else:
+                    break
             self.pc += 1
             return True
         elif nm == "load":
@@ -166,7 +177,7 @@ class Interp:
                 return True
         elif nm == "assign":
             op = s.group(1).substring()
-            val = getval(s.group(2))
+            val = self.getval(s.group(2))
             if s.group(0).getPatternName() == "var":
                 vname = s.group(0).substring()
                 if op == ":=":
@@ -201,11 +212,32 @@ class Interp:
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
-            self.end_call(None)
+            ends = self.ends[-1]
+            if ends[0] == "fun":
+                self.end_call(None)
+                self.ends = self.ends[:-1]
+            elif ends[0] == "for":
+                _, loopvar, startval, endval, fpc = ends
+                oldval = self.vars[-1][loopvar].get()
+                if oldval < endval:
+                    self.vars[-1][loopvar] = Var(loopvar,oldval+1,"const")
+                    self.pc = fpc
+                else:
+                    self.ends = self.ends[:-1]
+                self.pc += 1
             return True
         elif nm == "returnstmt":
+            self.ends = self.ends[:-1]
             retval = self.getval(s.group(0))
             self.end_call(retval)
+            return True
+        elif nm == "for":
+            loopvar = s.group(0).substring()
+            startval = self.getval(s.group(1))
+            endval = self.getval(s.group(2))
+            self.vars[-1][loopvar] = Var(loopvar,startval,"const")
+            self.ends += [("for",loopvar,startval,endval,self.pc)]
+            self.pc += 1
             return True
         raise Exception(s.dump())
         return False

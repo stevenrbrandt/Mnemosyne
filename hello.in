@@ -18,5 +18,10 @@ fun main(args)
     print("args: ",args)
     foo()
     print("add: ",add(3,4))
+    for i in 3 to 6
+        for j in 2 to 4
+            print("i,j=",i,",",j)
+        end
+    end
     return 0
 end
