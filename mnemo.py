@@ -1,4 +1,8 @@
 from Piraha import *
+from termcolor import colored
+import sys
+
+INDENT = "  "
 
 g = Grammar()
 compileFile(g,"test.peg")
@@ -10,40 +14,6 @@ if m.matches():
 else:
     m.showError()
     raise Exception()
-
-def feval(s):
-    pre = []
-    vals = []
-    nm = s.getPatternName()
-    if nm == "vals":
-        for i in range(s.groupCount()):
-            vals += [feval(s.group(i))]
-        return (pre, vals)
-    if nm in ["expr", "val"]:
-        if s.groupCount()==1:
-            return feval(s.group(0))
-        else:
-            ty1, arg1 = feval(s.group(0))
-            op = feval(s.group(1))
-            ty2, arg2 = feval(s.group(2))
-            etxt = ty1+op+ty2
-            if etxt == "num+num":
-                return int(arg1)+int(arg2)
-            elif etxt == "num-num":
-                return int(arg1)-int(arg2)
-            elif etxt == "num*num":
-                return int(arg1)*int(arg2)
-            elif etxt == "num/num":
-                return int(arg1)//int(arg2)
-            raise Exception(etxt)
-    if nm == "str":
-        stxt = s.substring()
-        return stxt[1:-1]
-    if nm == "op":
-        return s.substring()
-    if nm in ["real", "num"]:
-        return [nm, s.substring()]
-    raise Exception(nm)
 
 class Var:
     def __init__(self,name,val,qual):
@@ -71,6 +41,7 @@ class Interp:
         self.vars = [{}]
         self.loads = [{}]
         self.inst = []
+        self.indent = 0
         for i in range(gr.groupCount()):
             self.load_instructions(gr.group(i))
             self.inst += [gr.group(i)]
@@ -113,15 +84,56 @@ class Interp:
             return sval[1:-1]
         elif nm == "var" or nm == "fun":
             return self.loads[-1][expr.start]
+        elif nm == "array":
+            ar = []
+            for i in range(expr.groupCount()):
+                ar += [self.getval(expr.group(i))]
+            return ar
         print(expr.dump())
         raise Exception(nm)
+    def start_call(self,expr,retkey):
+        fname = expr.group(0).substring()
+        print(INDENT * self.indent,colored("start call: ","green"),colored(fname,"blue"),sep='')
+        self.indent += 1
+        funinst = self.funs[fname]
+        funval = self.inst[funinst-1]
+        argdefs = funval.group(1)
+        argvals = expr.group(1)
+        assert argdefs.groupCount() == argvals.groupCount(),"Arity mismatch for "+expr.substring()
+        self.vars += [{}]
+        for i in range(argdefs.groupCount()):
+            argname = argdefs.group(i).substring()
+            argval = self.getval(argvals.group(i))
+            argvar = Var(argname, argval, "const")
+            self.vars[-1][argname] = argvar
+        self.loads += [{}]
+        self.stack += [self.pc+1]
+        self.rets += [retkey]
+        self.pc = funinst
+    def end_call(self,retval):
+        self.indent -= 1
+        print(INDENT * self.indent,colored("end call","green"),sep='')
+        self.pc = self.stack[-1]
+        retkey = self.rets[-1]
+
+        self.stack = self.stack[:-1]
+        self.vars = self.vars[:-1]
+        self.loads = self.loads[:-1]
+        self.rets = self.rets[:-1]
+
+        self.loads[-1][retkey] = retval
     def step(self):
         assert self.pc >= 0
         if self.pc >= len(self.inst):
             return False
         s = self.inst[self.pc]
-        print("step:",self.pc) #,s.dump())
         nm = s.getPatternName()
+        if nm == "load":
+            print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
+        elif nm == "start_fn":
+            pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
+        else:
+            print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
             while s.getPatternName() != "end":
                 self.pc += 1
@@ -140,23 +152,7 @@ class Interp:
                 return True
             if s.group(0).getPatternName() == "fun":
                 expr = s.group(0)
-                fname = expr.group(0).substring()
-                funinst = self.funs[fname]
-                funval = self.inst[funinst-1]
-                print(funval.dump())
-                argdefs = funval.group(1)
-                argvals = expr.group(1)
-                assert argdefs.groupCount() == argvals.groupCount(),"Arity mismatch for "+expr.substring()
-                self.vars += [{}]
-                for i in range(argdefs.groupCount()):
-                    argname = argdefs.group(i).substring()
-                    argval = self.getval(argvals.group(i))
-                    argvar = Var(argname, argval, "const")
-                    self.vars[-1][argname] = argvar
-                self.loads += [{}]
-                self.stack += [self.pc+1]
-                self.rets += [s.start]
-                self.pc = funinst
+                self.start_call(expr,s.start)
                 return True
         elif nm == "def":
             qual = s.group(0).substring()
@@ -200,31 +196,16 @@ class Interp:
                 self.pc += 1
                 return True
             elif fnm in self.funs:
-                self.stack += [self.pc+1]
-                self.pc = self.funs[fnm]
-                self.vars += [{}]
-                self.loads += [{}]
+                self.start_call(s,s.start)
                 return True
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
-            self.pc = self.stack[-1]
-            self.stack = self.stack[:-1]
-            self.vars = self.vars[:-1]
-            self.loads = self.loads[:-1]
+            self.end_call(None)
             return True
         elif nm == "returnstmt":
             retval = self.getval(s.group(0))
-
-            self.pc = self.stack[-1]
-            retkey = self.rets[-1]
-
-            self.stack = self.stack[:-1]
-            self.vars = self.vars[:-1]
-            self.loads = self.loads[:-1]
-            self.rets = self.rets[:-1]
-
-            self.loads[-1][retkey] = retval
+            self.end_call(retval)
             return True
         raise Exception(s.dump())
         return False
@@ -245,7 +226,26 @@ while interp.step():
     pass
 
 if "main" in interp.funs:
-    interp.pc = interp.funs["main"]
-    interp.vars += [{}]
+    mainloc = interp.funs["main"]
+    maing = interp.inst[mainloc-1]
+    main_arg_count = maing.group(1).groupCount()
+    #interp.vars += [{}]
+    expr = Group("_start",m.gr.text,m.gr.start,m.gr.end)
+    fun = Group("fun","main",0,4)
+    args = Group("args","",0,0)
+    if main_arg_count == 1:
+        argv = Group("array","",0,0)
+        for a in sys.argv:
+            argv.children += [Group("str",'"'+a+'"',0,2+len(a))]
+        args.children += [argv]
+    expr.children += [fun,args]
+    interp.start_call(expr,0)
     while interp.step():
         pass
+    retval = interp.loads[-1][0]
+    if retval is None:
+        exit(0)
+    elif type(retval) == int:
+        exit(retval)
+    else:
+        raise Exception("return from main not an int: "+str(retval))
