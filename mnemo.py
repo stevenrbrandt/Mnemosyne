@@ -45,18 +45,66 @@ class Interp:
         self.indent = 0
         for i in range(gr.groupCount()):
             self.load_instructions(gr.group(i))
-            self.inst += [gr.group(i)]
+        # Diagnostic of the instruction set
+        for i in range(len(self.inst)):
+            print(colored(str(i)+":","yellow"),end=' ')
+            print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
+            for j in range(1,len(self.inst[i])):
+                  print(colored(self.inst[i][j],"green"),end=' ')
+            print()
+        #exit(0)
     def load_instructions(self,group):
         nm = group.getPatternName()
         if nm == "var" or nm == "fun":
             load = Group("load",group.text,group.start,group.end)
             load.children += [group]
-            self.inst += [load]
+            self.inst += [(load,)]
+        elif nm == "ifstmt":
+            prelist = []
+            ilist = []
+            glist = []
+            for i in range(group.groupCount()):
+                g = group.group(i)
+                nm = g.getPatternName()
+                if nm in ["else","elif"]:
+                    glist += [len(self.inst)]
+                    self.inst += [(Group("goto","",0,0),)]
+                n1 = len(self.inst)
+                self.load_instructions(group.group(i))
+                if nm in ["if","elif","else","end"]:
+                    n2 = len(self.inst)-1
+                    prelist += [n1]
+                    ilist += [n2]
+                    print("adding:",nm,ilist[-1])
+            for k in range(len(ilist)-1):
+                k1 = ilist[k]
+                k2 = prelist[k+1]
+                self.inst[k1] = (self.inst[k1][0], k2)
+            k1 = ilist[-1]
+            k2 = ilist[0]
+            self.inst[k1] = (self.inst[k1][0], k2)
+            for g in glist:
+                self.inst[g] = (self.inst[g][0], k1)
         elif nm == "assign" or nm == "def":
             self.load_instructions(group.group(2))
-        else:
+            self.inst += [(group,)]
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
+        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else"]:
+            for i in range(group.groupCount()):
+                self.load_instructions(group.group(i))
+            self.inst += [(group,)]
+        elif nm in ["fun_def", "forstmt"]:
+            fstart = len(self.inst)
+            for i in range(group.groupCount()):
+                self.load_instructions(group.group(i))
+            endptr = len(self.inst)-1
+            assert self.inst[endptr][0].getPatternName() == "end"
+            self.inst[fstart] = (self.inst[fstart][0], endptr) # point to end
+            self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
+        else:
+            raise Exception(nm)
     def getval(self,expr):
         nm = expr.getPatternName()
         if nm == "expr":
@@ -75,6 +123,8 @@ class Interp:
                     return val1*val2
                 elif sw == "int/int":
                     return val1//val2
+                elif sw == "int==int":
+                    return val1 == val2
                 raise Exception("sw="+sw)
         elif nm == "val":
             return self.getval(expr.group(0))
@@ -97,7 +147,7 @@ class Interp:
         print(INDENT * self.indent,colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
         funinst = self.funs[fname]
-        funval = self.inst[funinst-1]
+        funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
         argvals = expr.group(1)
         assert argdefs.groupCount() == argvals.groupCount(),"Arity mismatch for "+expr.substring()
@@ -128,7 +178,7 @@ class Interp:
         assert self.pc >= 0
         if self.pc >= len(self.inst):
             return False
-        s = self.inst[self.pc]
+        s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
             print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
@@ -137,19 +187,7 @@ class Interp:
         else:
             print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
-            end_count = 1
-            while True:
-                nm = s.getPatternName()
-                if nm == "for":
-                    end_count += 1
-                elif nm == "end":
-                    end_count -= 1
-                if end_count > 0:
-                    self.pc += 1
-                    s = self.inst[self.pc]
-                else:
-                    break
-            self.pc += 1
+            self.pc = self.inst[self.pc][1]+1
             return True
         elif nm == "load":
             if s.group(0).getPatternName() == "var":
@@ -216,6 +254,9 @@ class Interp:
             if ends[0] == "fun":
                 self.end_call(None)
                 self.ends = self.ends[:-1]
+            elif ends[0] == "if":
+                self.pc += 1
+                self.ends = self.ends[:-1]
             elif ends[0] == "for":
                 _, loopvar, startval, endval, fpc = ends
                 oldval = self.vars[-1][loopvar].get()
@@ -241,6 +282,23 @@ class Interp:
             self.ends += [("for",loopvar,startval,endval,self.pc)]
             self.pc += 1
             return True
+        elif nm == "if" or nm == "elif":
+            if nm == "if":
+                self.ends += [("if",)]
+            bval = self.getval(s.group(0))
+            assert type(bval) == bool, "If expression does not evaluate to boolean "+s.substring()
+            if bval:
+                self.pc += 1
+                return True
+            else:
+                self.pc = self.inst[self.pc][1]
+                return True
+        elif nm == "else":
+            self.pc += 1
+            return True
+        elif nm == "goto":
+            self.pc = self.inst[self.pc][1]
+            return True
         raise Exception(s.dump())
         return False
 
@@ -248,11 +306,12 @@ interp = Interp(m.gr)
 
 # Find functions
 for i in range(len(interp.inst)):
-    g = interp.inst[i]
+    g = interp.inst[i][0]
     nm = g.getPatternName() 
     if nm == "start_fn":
         fnm = g.group(0).substring()
         interp.funs[fnm] = i+1
+        print("fnm:",fnm)
 
 interp.pc = 0
 
@@ -261,7 +320,7 @@ while interp.step():
 
 if "main" in interp.funs:
     mainloc = interp.funs["main"]
-    maing = interp.inst[mainloc-1]
+    maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
     expr = Group("_start",m.gr.text,m.gr.start,m.gr.end)

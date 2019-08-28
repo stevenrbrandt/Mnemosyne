@@ -23,5 +23,15 @@ fun main(args)
             print("i,j=",i,",",j)
         end
     end
+    atomic i := 5
+    if i == 2
+      print("i is 2")
+    elif i == 5
+      print("i is 5")
+    elif i == 3
+      print("i is 3")
+    else
+      print("i is ?")
+    end
     return 0
 end

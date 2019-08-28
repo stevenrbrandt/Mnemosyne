@@ -29,15 +29,15 @@ whilestmt = {while} {-body} {end}
 returnstmt = return {expr}
 cmp = (<=|>=|==|<|>)
 if = if {expr}
-elif = elif {name} [<>=] {num}
+elif = elif {expr}
 else = else
 args = ({name}( , {name})*)?
 vals = ({expr}( , {expr})*)?
 start_fn = fun {name} \( {args} \)
 end = end
-ifstmt = {if} ({-body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
+ifstmt = {if} ({body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({def}|{assign}|{call}|{-ifstmt}|{-forstmt}|{-whilestmt}|{returnstmt})
+body = ({def}|{assign}|{call}|{ifstmt}|{forstmt}|{whilestmt}|{returnstmt})
 fun_def = {start_fn} ({-body} )*{end}
 random = {brk}
-prog = ^( {def}| {-fun_def}| {-import})* $
+prog = ^( {def}| {fun_def}| {import})* $
