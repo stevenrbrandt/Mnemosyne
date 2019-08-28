@@ -56,6 +56,9 @@ class Interp:
     def load_instructions(self,group):
         nm = group.getPatternName()
         if nm == "var" or nm == "fun":
+            if nm == "fun":
+                for i in range(group.groupCount()):
+                    self.load_instructions(group.group(i))
             load = Group("load",group.text,group.start,group.end)
             load.children += [group]
             self.inst += [(load,)]
@@ -124,7 +127,9 @@ class Interp:
                 elif sw == "int/int":
                     return val1//val2
                 elif sw == "int==int":
-                    return val1 == val2
+                    return val1==val2
+                elif sw == "int<int":
+                    return val1<val2
                 raise Exception("sw="+sw)
         elif nm == "val":
             return self.getval(expr.group(0))

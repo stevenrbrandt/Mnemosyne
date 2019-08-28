@@ -1,6 +1,6 @@
 skipper=([ \t\n\r]|\#.*)*\b
 keywords=(for|if|while|else|elif|end|fun|to|from|return)
-name=(?!{-keywords}\b)[a-zA-Z]+
+name=(?!{-keywords}\b)[a-zA-Z][a-zA-Z0-9_]*
 str = "(\\[\\\"]|[^\\"])*"
 op = ({-cmp}|[-+%*/])
 expr = {val}( {op} {val})?
