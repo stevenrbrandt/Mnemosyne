@@ -1,8 +1,11 @@
 from Piraha import *
 from termcolor import colored
 import sys
+from random import randint
 
 INDENT = "  "
+
+threads = []
 
 g = Grammar()
 compileFile(g,"test.peg")
@@ -31,8 +34,14 @@ class Var:
     def get(self):
         return self.val
 
+thread_seq = 0
 class Interp:
     def __init__(self,gr):
+        global thread_seq
+
+        self.id = thread_seq
+        thread_seq += 1
+
         self.gr = gr
         self.pc = -1
         self.ends = []
@@ -46,12 +55,12 @@ class Interp:
         for i in range(gr.groupCount()):
             self.load_instructions(gr.group(i))
         # Diagnostic of the instruction set
-        for i in range(len(self.inst)):
-            print(colored(str(i)+":","yellow"),end=' ')
-            print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
-            for j in range(1,len(self.inst[i])):
-                  print(colored(self.inst[i][j],"green"),end=' ')
-            print()
+        #for i in range(len(self.inst)):
+            #print(colored(str(i)+":","yellow"),end=' ')
+            #print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
+            #for j in range(1,len(self.inst[i])):
+                  #print(colored(self.inst[i][j],"green"),end=' ')
+            #print()
         #exit(0)
     def load_instructions(self,group):
         nm = group.getPatternName()
@@ -149,7 +158,7 @@ class Interp:
         raise Exception(nm)
     def start_call(self,expr,retkey):
         fname = expr.group(0).substring()
-        print(INDENT * self.indent,colored("start call: ","green"),colored(fname,"blue"),sep='')
+        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
         funinst = self.funs[fname]
         funval = self.inst[funinst-1][0]
@@ -169,7 +178,7 @@ class Interp:
         self.ends += [("fun",)]
     def end_call(self,retval):
         self.indent -= 1
-        print(INDENT * self.indent,colored("end call","green"),sep='')
+        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call","green"),sep='')
         self.pc = self.stack[-1]
         retkey = self.rets[-1]
 
@@ -180,17 +189,18 @@ class Interp:
 
         self.loads[-1][retkey] = retval
     def step(self):
+        global threads
         assert self.pc >= 0
         if self.pc >= len(self.inst):
             return False
         s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
-            print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
         elif nm == "start_fn":
-            print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
+            pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
         else:
-            print(INDENT*self.indent,colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
             self.pc = self.inst[self.pc][1]+1
             return True
@@ -249,9 +259,23 @@ class Interp:
                 print()
                 self.pc += 1
                 return True
+            elif fnm == "spawn":
+                vals = s.group(1)
+                newthread = Interp(self.gr)
+                newthread.indent = 0
+                newthread.funs = self.funs
+                for k in self.vars[0].keys():
+                    newthread.vars[0][k] = self.vars[0][k]
+                newthread.pc = len(self.inst)
+                newthread.start_call(vals,s.start)
+                threads += [newthread]
+                self.pc += 1
+                return True
             elif fnm in self.funs:
                 self.start_call(s,s.start)
                 return True
+            else:
+                raise Exception("Unknown function: "+fnm)
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
@@ -309,6 +333,8 @@ class Interp:
 
 interp = Interp(m.gr)
 
+threads += [interp]
+
 # Find functions
 for i in range(len(interp.inst)):
     g = interp.inst[i][0]
@@ -316,14 +342,35 @@ for i in range(len(interp.inst)):
     if nm == "start_fn":
         fnm = g.group(0).substring()
         interp.funs[fnm] = i+1
+        interp.vars[0][fnm] = Var("fname",fnm,"const")
         print("fnm:",fnm)
 
 interp.pc = 0
 
-while interp.step():
+def run_step():
+    while True:
+        lo = 0
+        hi = len(threads)-1
+        if hi < 0:
+            return False
+        if lo == hi:
+            tno = lo
+        else:
+            tno = randint(lo, hi)
+        thread = threads[tno]
+        if not thread.step():
+            del threads[tno]
+        else:
+            return True
+
+while run_step():
     pass
 
 if "main" in interp.funs:
+
+    # Need to re-add the thread before calling main
+    threads += [interp]
+
     mainloc = interp.funs["main"]
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
@@ -338,7 +385,7 @@ if "main" in interp.funs:
         args.children += [argv]
     expr.children += [fun,args]
     interp.start_call(expr,0)
-    while interp.step():
+    while run_step():
         pass
     retval = interp.loads[-1][0]
     if retval is None:
