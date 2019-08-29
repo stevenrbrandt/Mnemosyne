@@ -307,17 +307,20 @@ class Interp:
                 return False
             step_info = self.inst[self.pc]
             endix = step_info[1]
-            ends = self.inst[endix][0].getPatternName()
+            start_info = self.inst[endix]
+            ends = start_info[0].getPatternName()
             if ends == "start_fn":
                 self.end_call(None)
             elif ends == "if":
                 self.pc += 1
             elif ends == "for":
-                _, loopvar, startval, endval, fpc = ends
+                loopvar = start_info[0].group(0).substring()
+                startval = self.getval(start_info[0].group(1))
+                endval = self.getval(start_info[0].group(2))
                 oldval = self.vars[-1][loopvar].get()
                 if oldval < endval:
                     self.vars[-1][loopvar] = Var(loopvar,oldval+1,"const")
-                    self.pc = fpc
+                    self.pc = endix
                 else:
                     del self.vars[-1][loopvar]
                 self.pc += 1
