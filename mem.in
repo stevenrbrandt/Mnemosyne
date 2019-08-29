@@ -25,5 +25,5 @@ fun main()
     const th := spawn(change_mem,10)
     change_mem(11)
     join(th)
-    print("msg:",msg)
+    print("msg: ",msg)
 end

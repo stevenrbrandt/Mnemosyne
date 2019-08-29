@@ -1,0 +1,11 @@
+fun foo()
+    assert(false)
+end
+
+fun bar()
+    foo()
+end
+
+fun main()
+    bar()
+end

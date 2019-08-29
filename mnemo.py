@@ -102,7 +102,6 @@ class Interp:
             if nm == "start_fn":
                 fnm = g.group(0).substring()
                 self.vars[0][fnm] = Var("fname",i+1,"const")
-                print("fnm:",fnm,i+1)
 
     def diag(self):
         # Diagnostic of the instruction set
@@ -243,6 +242,15 @@ class Interp:
             return ar
         print(expr.dump())
         raise Exception(nm)
+    def die(self,msg):
+        print("Die:",msg)
+        self.stack += [self.pc] # Add current location to the stack
+        for k in range(len(self.stack)-1,-1,-1):
+            pc = self.stack[k]
+            if pc < len(self.inst):
+                pg = self.inst[pc][0]
+                print(" at line %d: %s" % (pg.linenum(), pg.substring()))
+        exit(1)
     def start_call(self,expr,retkey):
         global threads
         ####
@@ -253,6 +261,13 @@ class Interp:
                 print(self.getval(vals.group(i)),end='')
             print()
             self.pc += 1
+            return True
+        elif fnm == "assert":
+            self.pc += 1
+            vals = expr.group(1)
+            val = self.getval(vals.group(0))
+            if val != True:
+                self.die("Assertion failure: "+vals.substring())
             return True
         elif fnm == "spawn":
             vals = expr.group(1)
@@ -295,12 +310,12 @@ class Interp:
             argvar = Var(argname, argval, "const")
             self.vars[-1][argname] = argvar
         self.loads += [{}]
-        self.stack += [self.pc+1]
+        self.stack += [self.pc]
         self.rets += [retkey]
         self.pc = funinst
     def end_call(self,retval):
         self.indent -= 1
-        self.pc = self.stack[-1]
+        self.pc = self.stack[-1]+1
         retkey = self.rets[-1]
 
         self.stack = self.stack[:-1]
