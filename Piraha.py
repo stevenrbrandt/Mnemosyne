@@ -29,7 +29,7 @@ def expand_char(k):
   elif k == "\n":
     k = "NEWLINE"
   elif k == "\r":
-    k = "RETURN";
+    k = "RETURN"
   elif k == "'":
     k = "SINGLE_QUOTE"
   elif k == "\"":
@@ -134,11 +134,11 @@ class Bracket:
         if igcase:
           self.addRange(lo.lower(), hi.lower())
           self.addRange(lo.upper(), hi.upper())
-          return;
+          return
         a = self.ranges
         # Store the ascii value of the character,
         # so that ranges can be compared numerically.
-        r = [ord(lo), ord(hi)];
+        r = [ord(lo), ord(hi)]
         # The upper range should be greater than or
         # equal to the lower.
         if r[0] > r[1]:
@@ -334,7 +334,7 @@ class Multi:
 
     def diag(self):
       if self.pattern is None:
-        raise Exception("bad pat");
+        raise Exception("bad pat")
       return "Multi("+str(self.mn)+","+str(self.mx)+","+self.pattern.diag()+")"
 
     def __init__(self,pat,mn,mx=None):
@@ -442,7 +442,7 @@ class Dot:
         return False
       c = m.text[m.textPos]
       if re.match(r'.',c):
-        m.inc_pos();
+        m.inc_pos()
         return True
       else:
         return False
@@ -457,12 +457,12 @@ class Group:
     def group(self,n,nm=None):
       if n < 0:
         n += self.groupCount()+1+n
-      ref = self.children[n];
+      ref = self.children[n]
       if nm is not None:
-        m = ref.name;
+        m = ref.name
         if m != nm:
             raise Exception("wrong group '$nm' != '$m'")
-      return ref;
+      return ref
 
     def has(self,n,nm):
       if n < 0:
@@ -572,7 +572,7 @@ class Matcher:
     # time, but not the same matcher.
 
     def show(self):
-      print("SHOW");
+      print("SHOW")
 
     def showError(self):
       pos = self.maxTextPos
@@ -610,7 +610,7 @@ class Matcher:
       print(" " * len(g.group(0)),"| here",sep='')
       out = []
       count = []
-      ks = sorted(hash.keys()) #sort keys %hash;
+      ks = sorted(hash.keys()) #sort keys %hash
       for k in ks:
         if len(out)>0 and re.match(r'[b-zB-Z1-9]',k) and ord(k) == ord(out[-1]) + count[-1]:
           count[-1]+=1
@@ -667,9 +667,9 @@ class Matcher:
       if type(c) == list:
         for r in c:
           for n in range(r[0],r[1]+1):
-            self.hash[chr(n)]=1;
+            self.hash[chr(n)]=1
       elif type(c) == str and len(c)==1:
-        self.hash[c] = 1;
+        self.hash[c] = 1
       else:
         raise Exception(str(c))
 
@@ -1145,7 +1145,7 @@ def compile(g,ignCase,gram):
     elif "pelem" == pn:
         if g.groupCount()==2:
             pm = mkMulti(g.group(1))
-            m = pm; # Not sure
+            m = pm # Not sure
             m.pattern = compile(g.group(0),ignCase,gram)
             return pm
         return compile(g.group(0),ignCase,gram)
@@ -1159,7 +1159,7 @@ def compile(g,ignCase,gram):
         if len(li)==0:
           print(g.dump(),"\n")
           raise Exception("empty")
-        return Seq(li,0,0);
+        return Seq(li,0,0)
     elif "group_inside" == pn or "group_top" == pn:
         if g.groupCount()==1:
             return compile(g.group(0),ignCase,gram)
@@ -1169,7 +1169,7 @@ def compile(g,ignCase,gram):
         or_ = Or(False,False)
         or_.patterns = li
         orp = or_
-        return orp;
+        return orp
     elif "group" == pn:
         or_ = Or(False,False)
         orp_ = or_

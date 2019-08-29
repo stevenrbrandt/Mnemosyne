@@ -45,7 +45,6 @@ class Interp:
 
         self.gr = gr
         self.pc = -1
-        self.ends = []
         self.stack = []
         self.rets = []
         self.vars = [{}]
@@ -54,14 +53,25 @@ class Interp:
         self.indent = 0
         for i in range(gr.groupCount()):
             self.load_instructions(gr.group(i))
+
+        # Find functions
+        for i in range(len(self.inst)):
+            g = self.inst[i][0]
+            nm = g.getPatternName() 
+            if nm == "start_fn":
+                fnm = g.group(0).substring()
+                self.vars[0][fnm] = Var("fname",i+1,"const")
+                print("fnm:",fnm,i+1)
+
+    def diag(self):
         # Diagnostic of the instruction set
-        #for i in range(len(self.inst)):
-            #print(colored(str(i)+":","yellow"),end=' ')
-            #print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
-            #for j in range(1,len(self.inst[i])):
-                  #print(colored(self.inst[i][j],"green"),end=' ')
-            #print()
-        #exit(0)
+        for i in range(len(self.inst)):
+            print(colored(str(i)+":","yellow"),end=' ')
+            print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
+            for j in range(1,len(self.inst[i])):
+                  print(colored(self.inst[i][j],"green"),end='')
+            print()
+        print('=====')
     def load_instructions(self,group):
         nm = group.getPatternName()
         if nm == "var" or nm == "fun":
@@ -103,7 +113,7 @@ class Interp:
         elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
-        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else"]:
+        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
             self.inst += [(group,)]
@@ -134,32 +144,28 @@ class Interp:
                 elif t1 == float and t2 == int:
                     val2 = float(val2)
                     t2 = float
-                sw = t1.__name__+op+t2.__name__
-                if sw == "int+int":
+                if op == "+":
                     return val1+val2
-                elif sw == "int-int":
+                elif op == "-":
                     return val1-val2
-                elif sw == "int*int":
+                elif op == "*":
                     return val1*val2
-                elif sw == "int/int":
-                    return val1//val2
-                elif sw == "int==int":
+                elif op == "/":
+                    if [t1,t2]==[int,int]:
+                        return val1//val2
+                    else:
+                        return val1/val2
+                elif op == "==":
                     return val1==val2
-                elif sw == "int<int":
+                elif op == "<":
                     return val1<val2
-                elif sw == "float+float":
-                    return val1+val2
-                elif sw == "float-float":
-                    return val1-val2
-                elif sw == "float*float":
-                    return val1*val2
-                elif sw == "float/float":
-                    return val1//val2
-                elif sw == "float==float":
-                    return val1==val2
-                elif sw == "float<float":
-                    return val1<val2
-                raise Exception("sw="+sw)
+                elif op == "<=":
+                    return val1<=val2
+                elif op == ">=":
+                    return val1>=val2
+                elif op == "!=":
+                    return val1!=val2
+                raise Exception("op="+op)
         elif nm == "val":
             return self.getval(expr.group(0))
         elif nm == "num":
@@ -197,10 +203,8 @@ class Interp:
         self.stack += [self.pc+1]
         self.rets += [retkey]
         self.pc = funinst
-        self.ends += [("fun",)]
     def end_call(self,retval):
         self.indent -= 1
-        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call","green"),sep='')
         self.pc = self.stack[-1]
         retkey = self.rets[-1]
 
@@ -210,6 +214,7 @@ class Interp:
         self.rets = self.rets[:-1]
 
         self.loads[-1][retkey] = retval
+        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, str(retval)),"green"),sep='')
     def step(self):
         global threads
         assert self.pc >= 0
@@ -300,26 +305,26 @@ class Interp:
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
-            ends = self.ends[-1]
-            if ends[0] == "fun":
+            step_info = self.inst[self.pc]
+            endix = step_info[1]
+            ends = self.inst[endix][0].getPatternName()
+            if ends == "start_fn":
                 self.end_call(None)
-                self.ends = self.ends[:-1]
-            elif ends[0] == "if":
+            elif ends == "if":
                 self.pc += 1
-                self.ends = self.ends[:-1]
-            elif ends[0] == "for":
+            elif ends == "for":
                 _, loopvar, startval, endval, fpc = ends
                 oldval = self.vars[-1][loopvar].get()
                 if oldval < endval:
                     self.vars[-1][loopvar] = Var(loopvar,oldval+1,"const")
                     self.pc = fpc
                 else:
-                    self.ends = self.ends[:-1]
                     del self.vars[-1][loopvar]
                 self.pc += 1
+            else:
+                raise Exception(ends)
             return True
         elif nm == "returnstmt":
-            self.ends = self.ends[:-1]
             retval = self.getval(s.group(0))
             self.end_call(retval)
             return True
@@ -329,12 +334,9 @@ class Interp:
             endval = self.getval(s.group(2))
             assert loopvar not in self.vars[-1],"Loop attempts to redefine "+loopvar
             self.vars[-1][loopvar] = Var(loopvar,startval,"const")
-            self.ends += [("for",loopvar,startval,endval,self.pc)]
             self.pc += 1
             return True
         elif nm == "if" or nm == "elif":
-            if nm == "if":
-                self.ends += [("if",)]
             bval = self.getval(s.group(0))
             assert type(bval) == bool, "If expression does not evaluate to boolean "+s.substring()
             if bval:
@@ -349,21 +351,34 @@ class Interp:
         elif nm == "goto":
             self.pc = self.inst[self.pc][1]
             return True
+        elif nm == "import":
+            fname = self.getval(s.group(0))
+            funs = []
+            for i in range(1,s.groupCount()):
+                funs += [s.group(i).substring()]
+            with open(fname,"r") as fd:
+                fc = fd.read()
+            m2 = Matcher(g,g.default_rule,fc)
+            if not m2.matches():
+                m2.showError()
+            for k in range(m2.gr.groupCount()):
+                elem = m2.gr.group(k) 
+                nm = elem.getPatternName()
+                if nm == "fun_def":
+                    func = elem.group(0).group(0).substring()
+                    if func in funs:
+                        ind = len(self.inst)+1
+                        self.vars[0][func] = Var("fun_def",ind,"const")
+                        self.load_instructions(elem)
+                        #print("fdef:",func,"->",ind,self.inst[ind][0].dump())
+            self.pc += 1
+            return True
         raise Exception(s.dump())
         return False
 
 interp = Interp(m.gr)
 
 threads += [interp]
-
-# Find functions
-for i in range(len(interp.inst)):
-    g = interp.inst[i][0]
-    nm = g.getPatternName() 
-    if nm == "start_fn":
-        fnm = g.group(0).substring()
-        interp.vars[0][fnm] = Var("fname",i+1,"const")
-        print("fnm:",fnm,i+1)
 
 interp.pc = 0
 
