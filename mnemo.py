@@ -209,7 +209,6 @@ class Interp:
                 elif op == "==":
                     return val1==val2
                 elif op == "<":
-                    print("comp:",val1,"<",val2)
                     return val1<val2
                 elif op == ">":
                     return val1>val2
