@@ -1,49 +1,16 @@
 # First program
-const a := 4+1
 
-const b := a+2
-
-const ar := ["abc","def"]
-
-fun foo()
-    print("Foo!")
-end
-
-fun add(a,b)
-    return a+b
-end
-
-fun fib(n)
-    if n < 2
-        return n
-    else
-        return fib(n-1)+fib(n-2)
-    end
-end
+const a := 2
+const b := 3
+const ar := [1,2,3]
 
 fun main(args)
     print("Hello: ",a+2," ",3-b," ",1*4," ",1/4," ",ar)
-    print("args: ",args)
-    foo()
-    print("add: ",add(3,4))
-    for i in 3 to 6
-        for j in 2 to 4
-            print("i,j=",i,",",j)
-        end
+    print(1.0*3.0, 1+2.2)
+    atomic n := 0
+    for i in 0 to 10
+        n = n + i
     end
-    atomic i := 5
-    if i == 2
-      print("i is 2")
-    elif i == 5
-      print("i is 5")
-    elif i == 3
-      print("i is 3")
-    else
-      print("i is ?")
-    end
-    #print("fib(10)=",fib(10))
-    #spawn(print,"Hello","World")
-    spawn(fib,5)
-    spawn(fib,5)
-    return 0
+    print("n=",n)
+    return 5
 end

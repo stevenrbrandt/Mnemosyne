@@ -1,12 +1,12 @@
-from "math.in" import sin, cos
+#from "math.in" import sin, cos
 
-a = 3
+const a := 3
 
-add = fun(a,b) return a+b end
+const add := fun(a,b) return a+b end
 
 fun foo(a,b)
   m = [[0 for k in 0 to 100] for p in 0 to 100]
-  b := 6*(6+2)
+  atomic b := 6*(6+2)
   b += 2
   c = fun(x) print(x) end
   v = [1,"hello",2]
@@ -15,7 +15,7 @@ fun foo(a,b)
   end
   f = { hello : 3 }
   f["hello"] = fish
-  i := 0
+  atomic i := 0
   while i < 3
     i += 1
   end

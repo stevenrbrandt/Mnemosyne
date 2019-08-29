@@ -1,0 +1,23 @@
+fun foo()
+    print("Fib!")
+end
+
+fun add(a,b)
+    return a+b
+end
+
+fun fib(n)
+    if n < 2
+        return n
+    else
+        return fib(n-1)+fib(n-2)
+    end
+end
+
+fun main(args)
+    spawn(fib,5)
+    spawn(fib,5)
+    spawn(fib,5)
+    foo()
+    return add(2,3)
+end

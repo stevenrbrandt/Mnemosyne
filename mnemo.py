@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from Piraha import *
 from termcolor import colored
 import sys
@@ -9,7 +10,7 @@ threads = []
 
 g = Grammar()
 compileFile(g,"test.peg")
-with open("hello.in") as fd:
+with open(sys.argv[1]) as fd:
     fc = fd.read()
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
@@ -47,7 +48,6 @@ class Interp:
         self.ends = []
         self.stack = []
         self.rets = []
-        self.funs = {}
         self.vars = [{}]
         self.loads = [{}]
         self.inst = []
@@ -100,7 +100,7 @@ class Interp:
         elif nm == "assign" or nm == "def":
             self.load_instructions(group.group(2))
             self.inst += [(group,)]
-        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body"]:
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
         elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else"]:
@@ -124,9 +124,17 @@ class Interp:
                 return self.getval(expr.group(0))
             elif expr.groupCount() == 3:
                 val1 = self.getval(expr.group(0))
+                t1 = type(val1)
                 op = expr.group(1).substring()
                 val2 = self.getval(expr.group(2))
-                sw = type(val1).__name__+op+type(val2).__name__
+                t2 = type(val2)
+                if t1 == int and t2 == float:
+                    val1 = float(val1)
+                    t1 = float
+                elif t1 == float and t2 == int:
+                    val2 = float(val2)
+                    t2 = float
+                sw = t1.__name__+op+t2.__name__
                 if sw == "int+int":
                     return val1+val2
                 elif sw == "int-int":
@@ -139,6 +147,18 @@ class Interp:
                     return val1==val2
                 elif sw == "int<int":
                     return val1<val2
+                elif sw == "float+float":
+                    return val1+val2
+                elif sw == "float-float":
+                    return val1-val2
+                elif sw == "float*float":
+                    return val1*val2
+                elif sw == "float/float":
+                    return val1//val2
+                elif sw == "float==float":
+                    return val1==val2
+                elif sw == "float<float":
+                    return val1<val2
                 raise Exception("sw="+sw)
         elif nm == "val":
             return self.getval(expr.group(0))
@@ -149,6 +169,8 @@ class Interp:
             return sval[1:-1]
         elif nm == "var" or nm == "fun":
             return self.loads[-1][expr.start]
+        elif nm == "real":
+            return float(expr.substring())
         elif nm == "array":
             ar = []
             for i in range(expr.groupCount()):
@@ -160,7 +182,7 @@ class Interp:
         fname = expr.group(0).substring()
         print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
-        funinst = self.funs[fname]
+        funinst = self.vars[0][fname].get()
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
         argvals = expr.group(1)
@@ -263,7 +285,6 @@ class Interp:
                 vals = s.group(1)
                 newthread = Interp(self.gr)
                 newthread.indent = 0
-                newthread.funs = self.funs
                 for k in self.vars[0].keys():
                     newthread.vars[0][k] = self.vars[0][k]
                 newthread.pc = len(self.inst)
@@ -271,7 +292,7 @@ class Interp:
                 threads += [newthread]
                 self.pc += 1
                 return True
-            elif fnm in self.funs:
+            elif fnm in self.vars[0]:
                 self.start_call(s,s.start)
                 return True
             else:
@@ -341,9 +362,8 @@ for i in range(len(interp.inst)):
     nm = g.getPatternName() 
     if nm == "start_fn":
         fnm = g.group(0).substring()
-        interp.funs[fnm] = i+1
-        interp.vars[0][fnm] = Var("fname",fnm,"const")
-        print("fnm:",fnm)
+        interp.vars[0][fnm] = Var("fname",i+1,"const")
+        print("fnm:",fnm,i+1)
 
 interp.pc = 0
 
@@ -366,12 +386,12 @@ def run_step():
 while run_step():
     pass
 
-if "main" in interp.funs:
+if "main" in interp.vars[0]:
 
     # Need to re-add the thread before calling main
     threads += [interp]
 
-    mainloc = interp.funs["main"]
+    mainloc = interp.vars[0]["main"].get()
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
