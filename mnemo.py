@@ -371,40 +371,8 @@ class Interp:
                 else:
                     raise Exception(op)
         elif nm == "call":
-            fnm = s.group(0).substring()
-            if fnm == "print":
-                vals = s.group(1)
-                for i in range(vals.groupCount()):
-                    print(self.getval(vals.group(i)),end='')
-                print()
-                self.pc += 1
-                return True
-            elif fnm == "spawn":
-                vals = s.group(1)
-                newthread = Interp(self.gr)
-                newthread.indent = 0
-                for k in self.vars[0].keys():
-                    newthread.vars[0][k] = self.vars[0][k]
-                newthread.pc = len(self.inst)
-                newthread.start_call(vals,s.start)
-                threads += [newthread]
-                self.pc += 1
-                vid = Var("id",newthread.id,"const")
-                self.loads[-1][retkey] = vid
-                return True
-            elif fnm == "is_alive":
-                self.pc += 1
-                vals = s.group(1)
-                pid = self.getval(vals.group(0))
-                for th in threads:
-                    if pid == th.id:
-                        return True
-                return False
-            elif fnm in self.vars[0]:
-                self.start_call(s,s.start)
-                return True
-            else:
-                raise Exception("Unknown function: "+fnm)
+            self.start_call(s,s.start)
+            return True
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
