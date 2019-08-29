@@ -19,24 +19,57 @@ else:
     m.showError()
     raise Exception()
 
+class BadAddress:
+    pass
+
 class Var:
     def __init__(self,name,val,qual):
         self.name = name
         self.val = val
+        self.oldval = None
         self.qual = qual
+        self.finished = True
     def check(self):
         assert self.qual in ["atomic","const","regular","safe"]
     def set(self,v):
+        self.finished = False
+        self.oldval = self.val
         if self.val is None:
             self.val = v
         else:
             assert self.qual != "const", "Attempt to set a constant variable"
             self.val = v
     def get(self):
-        return self.val
+        if self.finished:
+            return self.val
+        elif self.qual == "atomic":
+            if randint(1,3) == 1:
+                self.oldval = self.val
+            return self.oldval
+        elif self.qual == "regular":
+            if randint(1,2) == 1:
+                return self.oldval
+            else:
+                return self.val
+        elif self.qual == "safe":
+            if type(self.val) == int:
+                val = randint(-1000,1000)
+            elif type(self.val) == float:
+                val = 2000*(random()-.5)
+            else:
+                val = BadAddress()
+            print("val:",val)
+            return val
+        else:
+            raise Exception(self.qual)
+    def storeFinish(self):
+        self.finished = True
 
 thread_seq = 0
 class Interp:
+    def done(self):
+        return len(self.stack) == 0
+
     def __init__(self,gr):
         global thread_seq
 
@@ -72,6 +105,7 @@ class Interp:
                   print(colored(self.inst[i][j],"green"),end='')
             print()
         print('=====')
+
     def load_instructions(self,group):
         nm = group.getPatternName()
         if nm == "var" or nm == "fun":
@@ -110,14 +144,18 @@ class Interp:
         elif nm == "assign" or nm == "def":
             self.load_instructions(group.group(2))
             self.inst += [(group,)]
+            if nm == "assign":
+                store = Group("store",group.text,group.start,group.end)
+                store.children += [group.group(0)]
+                self.inst += [(store,)]
         elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
-        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import"]:
+        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
             self.inst += [(group,)]
-        elif nm in ["fun_def", "forstmt"]:
+        elif nm in ["fun_def", "forstmt", "whilestmt"]:
             fstart = len(self.inst)
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
@@ -165,6 +203,12 @@ class Interp:
                     return val1>=val2
                 elif op == "!=":
                     return val1!=val2
+                elif op == "and":
+                    return val1 and val2
+                elif op == "or":
+                    return val1 or val2
+                elif op == "%":
+                    return val1 % val2
                 raise Exception("op="+op)
         elif nm == "val":
             return self.getval(expr.group(0))
@@ -185,6 +229,43 @@ class Interp:
         print(expr.dump())
         raise Exception(nm)
     def start_call(self,expr,retkey):
+        global threads
+        ####
+        fnm = expr.group(0).substring()
+        if fnm == "print":
+            vals = expr.group(1)
+            for i in range(vals.groupCount()):
+                print(self.getval(vals.group(i)),end='')
+            print()
+            self.pc += 1
+            return True
+        elif fnm == "spawn":
+            vals = expr.group(1)
+            newthread = Interp(self.gr)
+            newthread.indent = 0
+            for k in self.vars[0].keys():
+                newthread.vars[0][k] = self.vars[0][k]
+            newthread.pc = len(self.inst)
+            newthread.start_call(vals,expr.start)
+            threads += [newthread]
+            self.pc += 1
+            vid = Var("id",newthread.id,"const")
+            self.loads[-1][retkey] = newthread.id # vid
+            return True
+        elif fnm == "is_alive":
+            self.pc += 1
+            vals = expr.group(1)
+            pid = self.getval(vals.group(0))
+            found = False
+            for th in threads:
+                if pid == th.id:
+                    found = True
+                    break
+            print("thread id:",pid,"alive:",found)
+            vid = found # Var("alive",found,"const")
+            self.loads[-1][retkey] = vid
+            return
+        ####
         fname = expr.group(0).substring()
         print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
@@ -301,7 +382,17 @@ class Interp:
                 newthread.start_call(vals,s.start)
                 threads += [newthread]
                 self.pc += 1
+                vid = Var("id",newthread.id,"const")
+                self.loads[-1][retkey] = vid
                 return True
+            elif fnm == "is_alive":
+                self.pc += 1
+                vals = s.group(1)
+                pid = self.getval(vals.group(0))
+                for th in threads:
+                    if pid == th.id:
+                        return True
+                return False
             elif fnm in self.vars[0]:
                 self.start_call(s,s.start)
                 return True
@@ -381,6 +472,21 @@ class Interp:
                         #print("fdef:",func,"->",ind,self.inst[ind][0].dump())
             self.pc += 1
             return True
+        elif nm == "store":
+            nm = s.group(0).getPatternName()
+            if nm == "var":
+                vname = s.group(0).substring()
+                if vname in self.vars[-1]:
+                    var = self.vars[-1][vname]
+                else:
+                    var = self.vars[0][vname]
+                var.storeFinish()
+            else:
+                raise Exception(nm)
+            self.pc += 1
+            return True
+
+        self.diag()
         raise Exception(s.dump())
         return False
 

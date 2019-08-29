@@ -2,6 +2,7 @@ skipper=([ \t\n\r]|\#.*)*\b
 keywords=(for|if|while|else|elif|end|fun|to|from|return)
 name=(?!{-keywords}\b)[a-zA-Z][a-zA-Z0-9_]*
 str = "(\\[\\\"]|[^\\"])*"
+cmp = (<=|>=|==|!=|<|>|and|or|xor)
 op = ({-cmp}|[-+%*/])
 expr = {val}( {op} {val})?
 num = [0-9]+
@@ -27,7 +28,6 @@ for = for {name} in {expr} to {expr}
 while = while {expr}
 whilestmt = {while} {-body} {end}
 returnstmt = return {expr}
-cmp = (<=|>=|==|<|>)
 if = if {expr}
 elif = elif {expr}
 else = else
