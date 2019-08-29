@@ -1,8 +1,14 @@
 #!/usr/bin/python3
 from Piraha import *
-from termcolor import colored
 import sys
 from random import randint
+
+if sys.argv[1] == "--bw":
+    sys.argv = sys.argv[1:]
+    def colored(x,_):
+        return x
+else:
+    from termcolor import colored
 
 INDENT = "  "
 
@@ -79,10 +85,13 @@ class Interp:
         self.pc = -1
         self.stack = []
         self.rets = []
-        self.vars = [{}]
+        self.vars = [
+            {"true":Var("true",True,"const"),
+             "false":Var("false",False,"const")}]
         self.loads = [{}]
         self.inst = []
         self.indent = 0
+        self.delay = 0
         for i in range(gr.groupCount()):
             self.load_instructions(gr.group(i))
 
@@ -268,7 +277,6 @@ class Interp:
                 if pid == th.id:
                     found = True
                     break
-            print("thread id:",pid,"alive:",found)
             vid = found # Var("alive",found,"const")
             self.loads[-1][retkey] = vid
             return
@@ -308,12 +316,20 @@ class Interp:
         assert self.pc >= 0
         if self.pc >= len(self.inst):
             return False
+        if self.delay > 0:
+            print(INDENT*self.indent,colored("%d: " % self.id,"blue"),colored("delay","green"),sep='')
+            self.delay -= 1
+            return True
         s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
             print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
+        elif nm == "store":
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
+        elif nm == "assign":
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
         else:
             print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
@@ -351,6 +367,7 @@ class Interp:
         elif nm == "assign":
             op = s.group(1).substring()
             val = self.getval(s.group(2))
+            self.delay = randint(0,2)
             if s.group(0).getPatternName() == "var":
                 vname = s.group(0).substring()
                 if op == ":=":

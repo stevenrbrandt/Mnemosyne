@@ -1,0 +1,5 @@
+from "fib.in" import fib
+
+fun main()
+    print(fib(4))
+end
