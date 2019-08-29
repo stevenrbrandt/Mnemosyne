@@ -58,7 +58,6 @@ class Var:
                 val = 2000*(random()-.5)
             else:
                 val = BadAddress()
-            print("val:",val)
             return val
         else:
             raise Exception(self.qual)
@@ -159,9 +158,14 @@ class Interp:
             fstart = len(self.inst)
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
+                if i == 0:
+                    i0 = len(self.inst)-1
             endptr = len(self.inst)-1
             assert self.inst[endptr][0].getPatternName() == "end"
-            self.inst[fstart] = (self.inst[fstart][0], endptr) # point to end
+            if nm == "whilestmt":
+                self.inst[i0] = (self.inst[i0][0], endptr) # point to end
+            else:
+                self.inst[fstart] = (self.inst[fstart][0], endptr) # point to end
             self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
         else:
             raise Exception(nm)
@@ -196,7 +200,10 @@ class Interp:
                 elif op == "==":
                     return val1==val2
                 elif op == "<":
+                    print("comp:",val1,"<",val2)
                     return val1<val2
+                elif op == ">":
+                    return val1>val2
                 elif op == "<=":
                     return val1<=val2
                 elif op == ">=":
@@ -209,7 +216,7 @@ class Interp:
                     return val1 or val2
                 elif op == "%":
                     return val1 % val2
-                raise Exception("op="+op)
+                raise Exception("op=<"+op+">")
         elif nm == "val":
             return self.getval(expr.group(0))
         elif nm == "num":
@@ -420,6 +427,9 @@ class Interp:
                 else:
                     del self.vars[-1][loopvar]
                 self.pc += 1
+            elif ends == "load":
+                # This is a while statement
+                self.pc = step_info[1]
             else:
                 raise Exception(ends)
             return True
@@ -485,8 +495,15 @@ class Interp:
                 raise Exception(nm)
             self.pc += 1
             return True
-
-        self.diag()
+        elif nm == "while":
+            val = self.getval(s.group(0))
+            if val == True:
+                self.pc += 1
+            elif val == False:
+                self.pc = self.inst[self.pc][1] + 1
+            else:
+                raise Exception(val)
+            return True
         raise Exception(s.dump())
         return False
 
