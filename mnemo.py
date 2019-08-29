@@ -223,7 +223,7 @@ class Interp:
         s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
-            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='')
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
         else:
@@ -238,13 +238,18 @@ class Interp:
                     var = self.vars[-1][vname]
                 else:
                     var = self.vars[0][vname]
-                self.loads[-1][s.group(0).start] = var.get()
+                val = var.get()
+                self.loads[-1][s.group(0).start] = val
+                print(colored("-> "+str(val),"yellow"))
                 self.pc += 1
                 return True
-            if s.group(0).getPatternName() == "fun":
+            elif s.group(0).getPatternName() == "fun":
                 expr = s.group(0)
+                print()
                 self.start_call(expr,s.start)
                 return True
+            else:
+                raise Exception()
         elif nm == "def":
             qual = s.group(0).substring()
             val = self.getval(s.group(2))
