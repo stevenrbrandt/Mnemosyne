@@ -1,5 +1,5 @@
 skipper=([ \t\n\r]|\#.*)*\b
-keywords=(for|if|while|else|elif|end|fun|to|from|return)
+keywords=(for|if|while|else|elif|end|fun|to|from|return|new|safe|regular|atomic)
 name=(?!{-keywords}\b)[a-zA-Z][a-zA-Z0-9_]*
 str = "(\\[\\\"]|[^\\"])*"
 cmp = (<=|>=|==|!=|<|>|and|or|xor)
@@ -10,15 +10,16 @@ exp = (e[+-]?[0-9]+)
 real = ([0-9]+\.[0-9]*{-exp}?|\.[0-9]+{-exp}?|[0-9]+{-exp})
 fun = {name} \( {vals} \)
 array = \[ {-vals} \]
+alloc = new {qual} ({array}|{struct}|{comprehension})
 import = from {str} import {args}
 comprehension = \[ {expr} for {name} in {expr} to {expr} \]
 pair = {expr} : {expr}
 pairs = ({pair}( , {pair})*)?
 struct = \{ {pairs} \}
-elem = {var} \[ {expr} \]
+elem = {name}( \[ {expr} \])+
 lambda = fun \( {args} \) {body} {end}
-var = {name}
-val = ({lambda}|{fun}|{var}|{real}|{num}|{str}|\( {expr} \)|{array}|{elem}|{struct}|{comprehension})
+var = ({elem}|{name})
+val = ({alloc}|{lambda}|{fun}|{var}|{real}|{num}|{str}|\( {expr} \))
 qual = (atomic|regular|safe|const)
 def = {qual} ({var}|{elem}) := {expr}
 assignOp = [-+*/%]?=

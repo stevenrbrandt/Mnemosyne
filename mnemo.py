@@ -155,7 +155,7 @@ class Interp:
                 store = Group("store",group.text,group.start,group.end)
                 store.children += [group.group(0)]
                 self.inst += [(store,)]
-        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real"]:
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
         elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
@@ -223,7 +223,7 @@ class Interp:
                     return val1 or val2
                 elif op == "%":
                     return val1 % val2
-                raise Exception("op=<"+op+">")
+                raise Exception("op="+op)
         elif nm == "val":
             return self.getval(expr.group(0))
         elif nm == "num":
@@ -235,12 +235,13 @@ class Interp:
             return self.loads[-1][expr.start]
         elif nm == "real":
             return float(expr.substring())
-        elif nm == "array":
+        elif nm == "alloc":
             ar = []
-            for i in range(expr.groupCount()):
-                ar += [self.getval(expr.group(i))]
+            qual = expr.group(0).substring()
+            vals = expr.group(1)
+            for i in range(vals.groupCount()):
+                ar += [Var("&",self.getval(vals.group(i)),qual)]
             return ar
-        print(expr.dump())
         raise Exception(nm)
     def die(self,msg):
         print("Die:",msg)
@@ -302,7 +303,9 @@ class Interp:
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
         argvals = expr.group(1)
-        assert argdefs.groupCount() == argvals.groupCount(),"Arity mismatch for "+expr.substring()
+        n1 = argdefs.groupCount()
+        n2 = argvals.groupCount()
+        assert n1 == n2,"Arity mismatch for "+fname+" %d != %d" % (n1,n2)
         self.vars += [{}]
         for i in range(argdefs.groupCount()):
             argname = argdefs.group(i).substring()
@@ -351,11 +354,21 @@ class Interp:
             return True
         elif nm == "load":
             if s.group(0).getPatternName() == "var":
-                vname = s.group(0).substring()
+                vg = s.group(0)
+                if vg.group(0).getPatternName() == "name":
+                    vname = vg.substring()
+                    elems = []
+                else:
+                    elg = vg.group(0)
+                    vname = elg.group(0).substring()
+                    elems = elg.group(1).children
                 if vname in self.vars[-1]:
                     var = self.vars[-1][vname]
                 else:
                     var = self.vars[0][vname]
+                for ch in elems:
+                    chv = self.getval(ch)
+                    var = var.get()[chv]
                 val = var.get()
                 self.loads[-1][s.group(0).start] = val
                 print(colored("-> "+str(val),"yellow"))
@@ -382,7 +395,8 @@ class Interp:
             op = s.group(1).substring()
             val = self.getval(s.group(2))
             self.delay = randint(0,2)
-            if s.group(0).getPatternName() == "var":
+            nm = s.group(0).getPatternName()
+            if nm == "var":
                 vname = s.group(0).substring()
                 if op == ":=":
                     assert vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum())
@@ -397,10 +411,30 @@ class Interp:
                     else:
                         var = self.vars[0][vname]
                     var.set(val)
+                    self.store_var = var
                     self.pc += 1
                     return True
                 else:
                     raise Exception(op)
+            elif nm == "elem":
+                lhs = s.group(0)
+                vname = lhs.group(0).substring()
+                if vname in self.vars[-1]:
+                    var = self.vars[-1][vname]
+                else:
+                    var = self.vars[0][vname]
+                for i in range(1,lhs.groupCount()):
+                    ind = self.getval(lhs.group(i))
+                    var = var.get()[ind]
+                rhs = self.getval(s.group(2))
+                op = s.group(1).substring()
+                if op == "=":
+                    self.store_var = var
+                    var.set(rhs)
+                    return True
+                raise Exception()
+            else:
+                raise Exception(nm)
         elif nm == "call":
             self.start_call(s,s.start)
             return True
@@ -482,16 +516,7 @@ class Interp:
             self.pc += 1
             return True
         elif nm == "store":
-            nm = s.group(0).getPatternName()
-            if nm == "var":
-                vname = s.group(0).substring()
-                if vname in self.vars[-1]:
-                    var = self.vars[-1][vname]
-                else:
-                    var = self.vars[0][vname]
-                var.storeFinish()
-            else:
-                raise Exception(nm)
+            self.store_var.storeFinish()
             self.pc += 1
             return True
         elif nm == "while":
@@ -528,6 +553,11 @@ def run_step():
         else:
             return True
 
+def addgr(gr,sgr,ss):
+    g = Group(sgr,ss,0,len(ss))
+    gr.children += [g]
+    return g
+
 while run_step():
     pass
 
@@ -540,15 +570,15 @@ if "main" in interp.vars[0]:
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
-    expr = Group("_start",m.gr.text,m.gr.start,m.gr.end)
-    fun = Group("fun","main",0,4)
-    args = Group("args","",0,0)
+    expr = Group("call","",0,0)
+    addgr(expr,"name","main")
+    vals = addgr(expr,"vals","")
     if main_arg_count == 1:
-        argv = Group("array","",0,0)
+        alloc = addgr(vals,"alloc","")
+        addgr(alloc,"qual","const")
+        array = addgr(alloc,"array","")
         for a in sys.argv:
-            argv.children += [Group("str",'"'+a+'"',0,2+len(a))]
-        args.children += [argv]
-    expr.children += [fun,args]
+            addgr(array,"str",'"'+a+'"')
     interp.start_call(expr,0)
     while run_step():
         pass

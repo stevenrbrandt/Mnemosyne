@@ -1,3 +1,5 @@
+from "join.in" import join
+
 fun foo()
     print("Fib!")
 end
@@ -15,9 +17,13 @@ fun fib(n)
 end
 
 fun main(args)
-    spawn(fib,5)
-    spawn(fib,5)
-    spawn(fib,5)
+    const t1 := spawn(fib,5)
+    const t2 := spawn(fib,5)
+    assert(8 == fib(6))
+    join(t1)
+    join(t2)
     foo()
-    return add(2,3)
+    const v := add(2,3)
+    print(args[0]," ",args[1])
+    assert(v == 5)
 end

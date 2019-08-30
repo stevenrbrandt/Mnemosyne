@@ -1,3 +1,5 @@
+from "join.in" import join
+
 safe val := 0
 atomic msg := ""
 
@@ -7,16 +9,10 @@ fun change_mem(n)
        val = n
        s = val
        if ((s != 10) and (s != 11)) or (msg != "")
-          msg = "bad value of val: %d" % s
+          if msg == ""
+             msg = "bad value of val: %d" % s
+          end
           return s
-       end
-    end
-end
-
-fun join(th)
-    while true
-       if is_alive(th) == false
-          return 0
        end
     end
 end

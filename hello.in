@@ -2,7 +2,7 @@
 
 const a := 2
 const b := 3
-const ar := [1,2,3]
+const ar := new atomic [1,2,3]
 
 fun main(args)
     print("Hello: ",a+2," ",3-b," ",1*4," ",1/4," ",ar)
