@@ -1,5 +1,13 @@
 fun main()
-    safe v := new safe[9]
-    print(v[0])
+    safe v := new atomic[9,2,3]
+    assert(v[0] == 9)
+    assert(v[1] == 2)
+    assert(v[2] == 3)
+    assert(len(v) == 3)
+    if CAS(v,9,3)
+        print("CAS!")
+    else
+        print("No CAS")
+    end
     v[10] = 1
 end

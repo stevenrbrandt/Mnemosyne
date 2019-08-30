@@ -67,6 +67,8 @@ class Var:
             return val
         else:
             raise Exception(self.qual)
+    def __repr__(self):
+        return "Var(%s)" % self.qual
     def storeFinish(self):
         self.finished = True
 
@@ -269,6 +271,9 @@ class Interp:
             return ar
 
         raise Exception(nm)
+    def massert(self,test,msg):
+        if not test:
+            self.die(msg)
     def die(self,msg):
         print("Die:",msg)
         self.stack += [self.pc] # Add current location to the stack
@@ -320,6 +325,41 @@ class Interp:
                     break
             vid = found # Var("alive",found,"const")
             self.loads[-1][retkey] = vid
+            return
+        elif fnm == "len":
+            self.pc += 1
+            vname = expr.group(1).substring()
+            if vname in self.vars[-1]:
+                var = self.vars[-1][vname]
+            elif vname in self.vars[0]:
+                var = self.vars[0][vname]
+            else:
+                self.die("len: No such variable: "+vname)
+            self.massert(type(var.val) == list,"Arg 0 of len must be a list")
+            self.loads[-1][retkey] = len(var.val)
+            return
+        elif fnm == "CAS":
+            self.pc += 1
+            vals = expr.group(1)
+            vname = expr.group(1).group(0).substring()
+            if vname in self.vars[-1]:
+                var = self.vars[-1][vname]
+            elif vname in self.vars[0]:
+                var = self.vars[0][vname]
+            else:
+                self.die("CAS: No such variable: "+vname)
+            self.massert(type(var.val) == list,"Arg 0 of CAS must be a list")
+            self.massert(len(var.val) > 0,"Array arg of CAS must have length of 1 or more")
+            self.massert(var.val[0].qual == "atomic","Arg 0 of CAS must be atomic")
+            oldval = self.getval(vals.group(1))
+            newval = self.getval(vals.group(2))
+            if var.val[0].val == oldval:
+                var.val[0].val = newval
+                var.val[0].storeFinish()
+                retval = True
+            else:
+                retval = False
+            self.loads[-1][retkey] = retval
             return
         ####
         fname = expr.group(0).substring()
