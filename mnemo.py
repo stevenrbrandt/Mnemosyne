@@ -159,7 +159,7 @@ class Interp:
                 store = Group("store",group.text,group.start,group.end)
                 store.children += [group.group(0)]
                 self.inst += [(store,)]
-        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual"]:
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
         elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
@@ -240,12 +240,34 @@ class Interp:
         elif nm == "real":
             return float(expr.substring())
         elif nm == "alloc":
-            ar = []
             qual = expr.group(0).substring()
             vals = expr.group(1)
-            for i in range(vals.groupCount()):
-                ar += [Var("&",self.getval(vals.group(i)),qual)]
+            vnm  = expr.group(1).getPatternName()
+            if vnm == "array":
+                ar = []
+                for i in range(vals.groupCount()):
+                    ar += [Var("&",self.getval(vals.group(i)),qual)]
+            elif vnm == "struct":
+                d = {}
+                for i in range(vals.groupCount()):
+                    pair = self.getval(vals.group(i))
+                    pair[1].qual = qual
+                    d[pair[0]] = pair[1]
+                return d
+            else:
+                raise Exception(vnm)
             return ar
+        elif nm == "pair":
+            v0 = self.getval(expr.group(0))
+            v1 = self.getval(expr.group(1))
+            var1 = Var('&',v1,"const")
+            return [v0, var1]
+        elif nm == "pairs":
+            ar = []
+            for k in range(expr.groupCount()):
+                ar += self.getval(expr.group(k))
+            return ar
+
         raise Exception(nm)
     def die(self,msg):
         print("Die:",msg)

@@ -1,0 +1,24 @@
+from "join.in" import join
+safe val := new safe { "val":0 }
+atomic msg := ""
+
+fun change_mem(n)
+    atomic s := 0
+    while true
+       val["val"] = n
+       s = val["val"]
+       if ((s != 10) and (s != 11)) or (msg != "")
+          if msg == ""
+             msg = "bad value of val: %d" % s
+          end
+          return s
+       end
+    end
+end
+
+fun main()
+    const th := spawn(change_mem,10)
+    change_mem(11)
+    join(th)
+    print("msg: ",msg)
+end
