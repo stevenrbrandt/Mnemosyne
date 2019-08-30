@@ -1,4 +1,4 @@
-from "join.in" import join
+from "lib/join.mn" import join
 safe val := new safe { "val":0 }
 atomic msg := ""
 

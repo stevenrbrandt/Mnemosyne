@@ -1,4 +1,4 @@
-from "join.in" import join
+from "lib/join.mn" import join
 
 fun foo()
     print("Fib!")

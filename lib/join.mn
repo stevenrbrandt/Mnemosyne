@@ -1,0 +1,8 @@
+
+fun join(th)
+    while true
+       if is_alive(th) == false
+          return 0
+       end
+    end
+end

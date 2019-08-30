@@ -15,7 +15,7 @@ INDENT = "  "
 threads = []
 
 g = Grammar()
-compileFile(g,"test.peg")
+compileFile(g,"mnemo.peg")
 with open(sys.argv[1]) as fd:
     fc = fd.read()
 m = Matcher(g,g.default_rule,fc)

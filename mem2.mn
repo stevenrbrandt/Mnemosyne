@@ -1,13 +1,12 @@
-from "join.in" import join
-
-safe val := 0
+from "lib/join.mn" import join
+safe val := new safe[0]
 atomic msg := ""
 
 fun change_mem(n)
     atomic s := 0
     while true
-       val = n
-       s = val
+       val[0] = n
+       s = val[0]
        if ((s != 10) and (s != 11)) or (msg != "")
           if msg == ""
              msg = "bad value of val: %d" % s

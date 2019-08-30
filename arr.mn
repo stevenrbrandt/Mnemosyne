@@ -1,0 +1,5 @@
+fun main()
+    safe v := new safe[9]
+    print(v[0])
+    v[10] = 1
+end

@@ -1,4 +1,4 @@
-from "fib.in" import fib
+from "fib.mn" import fib
 
 fun main()
     print(fib(4))
