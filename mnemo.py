@@ -432,7 +432,10 @@ class Interp:
                     var = self.vars[0][vname]
                 for i in range(1,lhs.groupCount()):
                     ind = self.getval(lhs.group(i))
-                    var = var.get()[ind]
+                    try:
+                        var = var.get()[ind]
+                    except IndexError as ie:
+                        self.die(str(ie))
                 rhs = self.getval(s.group(2))
                 op = s.group(1).substring()
                 if op == "=":
