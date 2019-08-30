@@ -107,7 +107,11 @@ class Interp:
         # Diagnostic of the instruction set
         for i in range(len(self.inst)):
             print(colored(str(i)+":","yellow"),end=' ')
-            print(colored(self.inst[i][0].getPatternName(),"red"),end=' ')
+            nm = self.inst[i][0].getPatternName()
+            if nm in ["load", "store", "assign"]:
+                print(colored(nm,"red"),self.inst[i][0].substring(),end=' ')
+            else:
+                print(colored(nm,"red"),end=' ')
             for j in range(1,len(self.inst[i])):
                   print(colored(self.inst[i][j],"green"),end='')
             print()
@@ -364,8 +368,10 @@ class Interp:
                     elems = elg.group(1).children
                 if vname in self.vars[-1]:
                     var = self.vars[-1][vname]
-                else:
+                elif vname in self.vars[0]:
                     var = self.vars[0][vname]
+                else:
+                    self.die('No variable named: '+vname)
                 for ch in elems:
                     chv = self.getval(ch)
                     var = var.get()[chv]
@@ -417,6 +423,7 @@ class Interp:
                 else:
                     raise Exception(op)
             elif nm == "elem":
+                self.pc += 1
                 lhs = s.group(0)
                 vname = lhs.group(0).substring()
                 if vname in self.vars[-1]:
