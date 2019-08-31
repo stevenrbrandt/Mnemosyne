@@ -42,6 +42,8 @@ def loadstr(item):
 class Func:
     def __init__(self,addr):
         self.addr = addr
+    def __repr__(self):
+        return "Func(%d)" % self.addr
 
 class BadAddress:
     pass
@@ -91,7 +93,20 @@ class Var:
         self.finished = True
 
 thread_seq = 0
+
 class Interp:
+    def getvar(self,vname):
+        if vname in self.vars[-1][vname]:
+            return self.vars[-1][vname]
+        elif vname in self.vars[0][vname]:
+            return self.vars[0][vname]
+        else:
+            self.massert(false,"Invalid variable: '%s'" % vname)
+
+    def addr(self,f):
+        self.massert(hasattr(f,"addr"),"Not a function object: "+str(f))
+        return f.addr
+        
     def done(self):
         return len(self.stack) == 0
 
@@ -178,7 +193,7 @@ class Interp:
                 store = Group("store",group.text,group.start,group.end)
                 store.children += [group.group(0)]
                 self.inst += [(store,)]
-        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair", "sizer"]:
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair", "sizer", "memcall"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
         elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
@@ -271,8 +286,9 @@ class Interp:
                     ar += [Var("&",self.getval(vals.group(i)),qual)]
             elif vnm == "struct":
                 d = {}
-                for i in range(vals.groupCount()):
-                    pair = self.getval(vals.group(i))
+                hash = vals.group(0)
+                for i in range(hash.groupCount()):
+                    pair = self.getval(hash.group(i))
                     pair[1].qual = qual
                     d[pair[0]] = pair[1]
                 return d
@@ -291,6 +307,9 @@ class Interp:
             v1 = self.getval(expr.group(1))
             var1 = Var('&',v1,"const")
             return [v0, var1]
+        elif nm == "memcall":
+            dvar = self.getval(expr.group(0))
+            return dvar[expr.group(1).substring()]
         elif nm == "pairs" or nm == "vals":
             ar = []
             for k in range(expr.groupCount()):
@@ -407,21 +426,32 @@ class Interp:
             self.loads[-1][retkey] = retval
             return
         ####
-        fname = expr.group(0).substring()
+        mfnm = expr.group(0).getPatternName()
+        add_self = 0
+        if mfnm == "name":
+            fname = expr.group(0).substring()
+            funinst = self.addr(self.vars[0][fname].get())
+        elif mfnm == "memcall":
+            add_self = 1
+            fname = expr.group(0).substring()
+            vname = expr.group(0).group(0).substring()
+            funinst = self.addr(self.getval(expr.group(0)).get())
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
-        funinst = self.vars[0][fname].get().addr
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
         argvals = expr.group(1)
         n1 = argdefs.groupCount()
-        n2 = argvals.groupCount()
-        self.massert(n1 == n2,"Arity mismatch for "+fname+" %d != %d" % (n1,n2))
+        n2 = argvals.groupCount()+add_self
+        self.massert(n1 == n2,"Arity mismatch for '"+fname+"()' %d != %d" % (n1,n2))
         self.vars += [{}]
         for i in range(argdefs.groupCount()):
             argname = argdefs.group(i).substring()
-            argval = self.getval(argvals.group(i))
+            if add_self == 1 and i == 0:
+                argval = self.getval(expr.group(0).group(0))
+            else:
+                argval = self.getval(argvals.group(i-add_self))
             argvar = Var(argname, argval, "const")
             self.vars[-1][argname] = argvar
         self.loads += [{}]
@@ -696,7 +726,7 @@ if "main" in interp.vars[0]:
     # Need to re-add the thread before calling main
     threads += [interp]
 
-    mainloc = interp.vars[0]["main"].get().addr
+    mainloc = interp.addr(interp.vars[0]["main"].get())
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
