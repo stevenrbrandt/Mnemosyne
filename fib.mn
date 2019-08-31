@@ -1,7 +1,7 @@
 from "lib/join.mn" import join
 
 fun foo()
-    print("Fib!")
+    println("Fib!")
 end
 
 fun add(a,b)
@@ -24,6 +24,6 @@ fun main(args)
     join(t2)
     foo()
     const v := add(2,3)
-    print(args[0]," ",args[1])
+    println(args[0]," ",args[1])
     assert(v == 5)
 end

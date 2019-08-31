@@ -5,12 +5,12 @@ const b := 3
 const ar := new atomic [1,2,3]
 
 fun main(args)
-    print("Hello: ",a+2," ",3-b," ",1*4," ",1/4," ",ar)
-    print(1.0*3.0, 1+2.2)
+    println("Hello: ",a+2," ",3-b," ",1*4," ",1/4," ",ar)
+    println(1.0*3.0, 1+2.2)
     atomic n := 0
     for i in 0 to 10
         n = n + i
     end
-    print("n=",n)
+    println("n=",n)
     assert(n==55)
 end

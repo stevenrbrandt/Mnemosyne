@@ -101,6 +101,7 @@ class Interp:
         self.id = thread_seq
         thread_seq += 1
 
+        self.trace = True
         self.gr = gr
         self.pc = -1
         self.stack = []
@@ -133,16 +134,15 @@ class Interp:
             else:
                 print(colored(nm,"red"),end=' ')
             for j in range(1,len(self.inst[i])):
-                  print(colored(self.inst[i][j],"green"),end='')
+                print(colored(self.inst[i][j],"green"),end=' ')
             print()
         print('=====')
 
     def load_instructions(self,group):
         nm = group.getPatternName()
         if nm == "var" or nm == "fun":
-            if nm == "fun":
-                for i in range(group.groupCount()):
-                    self.load_instructions(group.group(i))
+            for i in range(group.groupCount()):
+                self.load_instructions(group.group(i))
             load = Group("load",group.text,group.start,group.end)
             load.children += [group]
             self.inst += [(load,)]
@@ -162,7 +162,6 @@ class Interp:
                     n2 = len(self.inst)-1
                     prelist += [n1]
                     ilist += [n2]
-                    print("adding:",nm,ilist[-1])
             for k in range(len(ilist)-1):
                 k1 = ilist[k]
                 k2 = prelist[k+1]
@@ -179,7 +178,7 @@ class Interp:
                 store = Group("store",group.text,group.start,group.end)
                 store.children += [group.group(0)]
                 self.inst += [(store,)]
-        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair"]:
+        elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair", "sizer"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
         elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
@@ -198,7 +197,10 @@ class Interp:
                 self.inst[i0] = (self.inst[i0][0], endptr) # point to end
             else:
                 self.inst[fstart] = (self.inst[fstart][0], endptr) # point to end
-            self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
+            if nm == "forstmt":
+                self.inst[endptr] = (self.inst[endptr][0], i0) # point to start
+            else:
+                self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
         else:
             raise Exception(nm)
     def getval(self,expr):
@@ -274,6 +276,13 @@ class Interp:
                     pair[1].qual = qual
                     d[pair[0]] = pair[1]
                 return d
+            elif vnm == "sizer":
+                ar = []
+                count = self.getval(vals.group(0))
+                item = self.getval(vals.group(1))
+                for i in range(count):
+                    ar += [Var("&",item,qual)]
+                return ar
             else:
                 raise Exception(vnm)
             return ar
@@ -305,11 +314,23 @@ class Interp:
         global threads
         ####
         fnm = expr.group(0).substring()
-        if fnm == "print":
+        if fnm == "print" or fnm == "println":
             vals = expr.group(1)
             for i in range(vals.groupCount()):
                 print(self.getval(vals.group(i)),end='')
-            print()
+            if fnm == "println":
+                print()
+            self.pc += 1
+            return True
+        elif fnm == "trace":
+            vals = expr.group(1)
+            val = self.getval(vals.group(0))
+            if val == True:
+                self.trace = True
+            elif val == False:
+                self.trace = False
+            else:
+                raise Exception(val)
             self.pc += 1
             return True
         elif fnm == "assert":
@@ -381,7 +402,8 @@ class Interp:
             return
         ####
         fname = expr.group(0).substring()
-        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
+        if self.trace:
+            print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
         funinst = self.vars[0][fname].get().addr
         funval = self.inst[funinst-1][0]
@@ -389,7 +411,7 @@ class Interp:
         argvals = expr.group(1)
         n1 = argdefs.groupCount()
         n2 = argvals.groupCount()
-        assert n1 == n2,"Arity mismatch for "+fname+" %d != %d" % (n1,n2)
+        self.massert(n1 == n2,"Arity mismatch for "+fname+" %d != %d" % (n1,n2))
         self.vars += [{}]
         for i in range(argdefs.groupCount()):
             argname = argdefs.group(i).substring()
@@ -411,28 +433,34 @@ class Interp:
         self.rets = self.rets[:-1]
 
         self.loads[-1][retkey] = retval
-        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, loadstr(retval)),"green"),sep='')
+        if self.trace:
+            print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, loadstr(retval)),"green"),sep='')
     def step(self):
         global threads
         assert self.pc >= 0,str(self.pc)
         if self.pc >= len(self.inst):
             return False
         if self.delay > 0:
-            print(INDENT*self.indent,colored("%d: " % self.id,"blue"),colored("delay","green"),sep='')
+            if self.trace:
+                print(INDENT*self.indent,colored("%d: " % self.id,"blue"),colored("delay","green"),sep='')
             self.delay -= 1
             return True
         s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
-            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
+            if self.trace:
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
         elif nm == "store":
-            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
+            if self.trace:
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
         elif nm == "assign":
-            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
+            if self.trace:
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
         else:
-            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
+            if self.trace:
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
         if nm == "start_fn":
             self.pc = self.inst[self.pc][1]+1
             return True
@@ -457,12 +485,14 @@ class Interp:
                     var = var.get()[chv]
                 val = var.get()
                 self.loads[-1][s.group(0).start] = val
-                print(colored("-> "+loadstr(val),"yellow"))
+                if self.trace:
+                    print(colored("-> "+loadstr(val),"yellow"))
                 self.pc += 1
                 return True
             elif s.group(0).getPatternName() == "fun":
                 expr = s.group(0)
-                print()
+                if self.trace:
+                    print()
                 self.start_call(expr,s.start)
                 return True
             else:
@@ -472,7 +502,7 @@ class Interp:
             val = self.getval(s.group(2))
             if s.group(1).getPatternName() == "var":
                 vname = s.group(1).substring()
-                assert vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum())
+                self.massert(vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum()))
                 var = Var(vname,val,qual)
                 self.vars[-1][vname] = var
                 self.pc += 1
@@ -485,13 +515,13 @@ class Interp:
             if nm == "var":
                 vname = s.group(0).substring()
                 if op == ":=":
-                    assert vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum())
+                    self.massert(vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum()))
                     var = Var(vname,val)
                     self.vars[-1][vname] = var
                     self.pc += 1
                     return True
                 elif op == "=":
-                    assert (vname in self.vars[-1]) or (vname in self.vars[0]),"Undefined variable "+vname+" at line "+str(s.linenum())
+                    self.massert((vname in self.vars[-1]) or (vname in self.vars[0]),"Undefined variable '"+vname+"' at line "+str(s.linenum()))
                     if vname in self.vars[-1]:
                         var = self.vars[-1][vname]
                     else:
@@ -564,13 +594,13 @@ class Interp:
             loopvar = s.group(0).substring()
             startval = self.getval(s.group(1))
             endval = self.getval(s.group(2))
-            assert loopvar not in self.vars[-1],"Loop attempts to redefine "+loopvar
+            self.massert(loopvar not in self.vars[-1],"Loop attempts to redefine "+loopvar)
             self.vars[-1][loopvar] = Var(loopvar,startval,"const")
             self.pc += 1
             return True
         elif nm == "if" or nm == "elif":
             bval = self.getval(s.group(0))
-            assert type(bval) == bool, "If expression does not evaluate to boolean "+s.substring()
+            self.massert(type(bval) == bool, "If expression does not evaluate to boolean "+s.substring())
             if bval:
                 self.pc += 1
                 return True

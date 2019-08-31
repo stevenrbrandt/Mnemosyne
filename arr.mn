@@ -5,9 +5,9 @@ fun main()
     assert(v[2] == 3)
     assert(len(v) == 3)
     if CAS(v,9,3)
-        print("CAS!")
+        println("CAS!")
     else
-        print("No CAS")
+        println("No CAS")
     end
     CAS(v,5,4)
     assert(v == 3)
