@@ -9,5 +9,7 @@ fun main()
     else
         print("No CAS")
     end
+    CAS(v,5,4)
+    assert(v == 3)
     v[10] = 1
 end

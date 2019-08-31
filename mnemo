@@ -3,6 +3,8 @@ from Piraha import *
 import sys
 from random import randint
 
+files = {}
+
 if sys.argv[1] == "--bw":
     sys.argv = sys.argv[1:]
     def colored(x,_):
@@ -18,12 +20,24 @@ g = Grammar()
 compileFile(g,"mnemo.peg")
 with open(sys.argv[1]) as fd:
     fc = fd.read()
+files[fc] = sys.argv[1]
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
     pass #print(m.gr.dump())
 else:
     m.showError()
     raise Exception()
+
+def filename(group):
+    return files[group.text]
+
+def loadstr(item):
+    if type(item) == list:
+        return "Array[%d]" % len(item)
+    elif type(item) == dict:
+        return "Struct[]"
+    else:
+        return str(item)
 
 class BadAddress:
     pass
@@ -281,7 +295,7 @@ class Interp:
             pc = self.stack[k]
             if pc < len(self.inst):
                 pg = self.inst[pc][0]
-                print(" at line %d: %s" % (pg.linenum(), pg.substring()))
+                print(" at file '%s' line %d: %s" % (filename(pg), pg.linenum(), pg.substring()))
         exit(1)
     def start_call(self,expr,retkey):
         global threads
@@ -393,7 +407,7 @@ class Interp:
         self.rets = self.rets[:-1]
 
         self.loads[-1][retkey] = retval
-        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, str(retval)),"green"),sep='')
+        print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, loadstr(retval)),"green"),sep='')
     def step(self):
         global threads
         assert self.pc >= 0
@@ -439,7 +453,7 @@ class Interp:
                     var = var.get()[chv]
                 val = var.get()
                 self.loads[-1][s.group(0).start] = val
-                print(colored("-> "+str(val),"yellow"))
+                print(colored("-> "+loadstr(val),"yellow"))
                 self.pc += 1
                 return True
             elif s.group(0).getPatternName() == "fun":
@@ -572,6 +586,7 @@ class Interp:
                 funs += [s.group(i).substring()]
             with open(fname,"r") as fd:
                 fc = fd.read()
+            files[fc] = fname
             m2 = Matcher(g,g.default_rule,fc)
             if not m2.matches():
                 m2.showError()
