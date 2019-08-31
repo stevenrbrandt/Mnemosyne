@@ -1,0 +1,6 @@
+from "lib/math.mn" import sin, atan2
+
+fun main()
+    print("sin=",sin(3))
+    print("atan2=",atan2(1,1))
+end

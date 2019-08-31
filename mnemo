@@ -322,6 +322,18 @@ class Interp:
                 print()
             self.pc += 1
             return True
+        elif fnm == "pyexec":
+            vals = expr.group(1)
+            args = []
+            self.pc += 1
+            retval = None
+            for k in range(vals.groupCount()):
+                args += [ self.getval(vals.group(k)) ]
+            eglobs = {"retval":None,"args":args}
+            exec(args[0],{},eglobs)
+            retval = eglobs["retval"]
+            self.loads[-1][retkey] = retval
+            return True
         elif fnm == "trace":
             vals = expr.group(1)
             val = self.getval(vals.group(0))
@@ -614,10 +626,13 @@ class Interp:
             self.pc = self.inst[self.pc][1]
             return True
         elif nm == "import":
+            print("import:",s.dump())
             fname = self.getval(s.group(0))
+            vals = s.group(1)
             funs = []
-            for i in range(1,s.groupCount()):
-                funs += [s.group(i).substring()]
+            for i in range(vals.groupCount()):
+                funs += [vals.group(i).substring()]
+            print("funs:",funs)
             with open(fname,"r") as fd:
                 fc = fd.read()
             files[fc] = fname

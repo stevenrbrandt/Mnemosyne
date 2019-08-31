@@ -1,0 +1,21 @@
+fun sin(x)
+    return pyexec("import math; retval = math.sin(args[1]); print('retval:',retval)",x)
+end
+fun cos(x)
+    return pyexec("import math; retval = math.cos(args[1]); print('retval:',retval)",x)
+end
+fun tan(x)
+    return pyexec("import math; retval = math.tan(args[1]); print('retval:',retval)",x)
+end
+fun sinh(x)
+    return pyexec("import math; retval = math.sinh(args[1]); print('retval:',retval)",x)
+end
+fun cosh(x)
+    return pyexec("import math; retval = math.cosh(args[1]); print('retval:',retval)",x)
+end
+fun tanh(x)
+    return pyexec("import math; retval = math.tanh(args[1]); print('retval:',retval)",x)
+end
+fun atan2(x,y)
+    return pyexec("import math; retval = math.atan2(args[1],args[2]); print('retval:',retval)",x,y)
+end
