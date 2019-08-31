@@ -428,7 +428,8 @@ class Interp:
         ####
         mfnm = expr.group(0).getPatternName()
         add_self = 0
-        if mfnm == "name":
+        # Why is this sometimes expr?
+        if mfnm == "expr" or mfnm == "name":
             fname = expr.group(0).substring()
             funinst = self.addr(self.vars[0][fname].get())
         elif mfnm == "memcall":
@@ -436,6 +437,8 @@ class Interp:
             fname = expr.group(0).substring()
             vname = expr.group(0).group(0).substring()
             funinst = self.addr(self.getval(expr.group(0)).get())
+        else:
+            raise Exception(mfnm)
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
@@ -650,7 +653,6 @@ class Interp:
             self.pc = self.inst[self.pc][1]
             return True
         elif nm == "import":
-            print("import:",s.dump())
             fname = self.getval(s.group(0))
             vals = s.group(1)
             funs = []

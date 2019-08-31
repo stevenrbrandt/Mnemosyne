@@ -23,9 +23,8 @@ var = ({elem}|{name})
 val = ({alloc}|{lambda}|{fun}|{var}|{real}|{num}|{str}|\( {expr} \))
 qual = (atomic|regular|safe|const)
 def = {qual} ({var}|{elem}) := {expr}
-assignOp = [-+*/%]?=
+assignOp = =
 assign=({elem}|{var}) {assignOp} {expr}
-call = {name} \( {vals} \)
 for = for {name} in {expr} to {expr}
 while = while {expr}
 whilestmt = {while}( {-body})* {end}
@@ -39,7 +38,7 @@ start_fn = fun {name} \( {args} \)
 end = end
 ifstmt = {if} ({body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({def}|{assign}|{call}|{ifstmt}|{forstmt}|{whilestmt}|{returnstmt})
+body = ({def}|{assign}|{fun}|{ifstmt}|{forstmt}|{whilestmt}|{returnstmt})
 fun_def = {start_fn} ({-body} )*{end}
 random = {brk}
 prog = ^( {def}| {fun_def}| {import})* $

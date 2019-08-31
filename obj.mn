@@ -7,4 +7,5 @@ atomic obj := new atomic {"a":3, "c":9, "b":1, "printa":printa }
 fun main()
     print(obj["a"],obj["b"],obj["c"])
     const x := obj.printa()
+    obj.printa()
 end
