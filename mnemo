@@ -39,6 +39,10 @@ def loadstr(item):
     else:
         return str(item)
 
+class Func:
+    def __init__(self,addr):
+        self.addr = addr
+
 class BadAddress:
     pass
 
@@ -117,7 +121,7 @@ class Interp:
             nm = g.getPatternName() 
             if nm == "start_fn":
                 fnm = g.group(0).substring()
-                self.vars[0][fnm] = Var("fname",i+1,"const")
+                self.vars[0][fnm] = Var("fname",Func(i+1),"const")
 
     def diag(self):
         # Diagnostic of the instruction set
@@ -379,7 +383,7 @@ class Interp:
         fname = expr.group(0).substring()
         print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         self.indent += 1
-        funinst = self.vars[0][fname].get()
+        funinst = self.vars[0][fname].get().addr
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
         argvals = expr.group(1)
@@ -410,7 +414,7 @@ class Interp:
         print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, loadstr(retval)),"green"),sep='')
     def step(self):
         global threads
-        assert self.pc >= 0
+        assert self.pc >= 0,str(self.pc)
         if self.pc >= len(self.inst):
             return False
         if self.delay > 0:
@@ -597,7 +601,7 @@ class Interp:
                     func = elem.group(0).group(0).substring()
                     if func in funs:
                         ind = len(self.inst)+1
-                        self.vars[0][func] = Var("fun_def",ind,"const")
+                        self.vars[0][func] = Var("fun_def",Func(ind),"const")
                         self.load_instructions(elem)
                         #print("fdef:",func,"->",ind,self.inst[ind][0].dump())
             self.pc += 1
@@ -653,7 +657,7 @@ if "main" in interp.vars[0]:
     # Need to re-add the thread before calling main
     threads += [interp]
 
-    mainloc = interp.vars[0]["main"].get()
+    mainloc = interp.vars[0]["main"].get().addr
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
