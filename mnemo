@@ -86,7 +86,7 @@ class Var:
         else:
             raise Exception(self.qual)
     def __repr__(self):
-        return "Var(%s)" % self.qual
+        return "Var(%s,%s)" % (self.qual, type(self.val).__name__ )
     def storeFinish(self):
         self.finished = True
 
@@ -291,7 +291,7 @@ class Interp:
             v1 = self.getval(expr.group(1))
             var1 = Var('&',v1,"const")
             return [v0, var1]
-        elif nm == "pairs":
+        elif nm == "pairs" or nm == "vals":
             ar = []
             for k in range(expr.groupCount()):
                 ar += self.getval(expr.group(k))
@@ -309,7 +309,8 @@ class Interp:
             if pc < len(self.inst):
                 pg = self.inst[pc][0]
                 print(" at file '%s' line %d: %s" % (filename(pg), pg.linenum(), pg.substring()))
-        exit(1)
+        #raise Exception("die")
+        exit(0)
     def start_call(self,expr,retkey):
         global threads
         ####
@@ -379,15 +380,8 @@ class Interp:
             return
         elif fnm == "len":
             self.pc += 1
-            vname = expr.group(1).substring()
-            if vname in self.vars[-1]:
-                var = self.vars[-1][vname]
-            elif vname in self.vars[0]:
-                var = self.vars[0][vname]
-            else:
-                self.die("len: No such variable: "+vname)
-            self.massert(type(var.val) == list,"Arg 0 of len must be a list")
-            self.loads[-1][retkey] = len(var.val)
+            vals = self.getval(expr.group(1))
+            self.loads[-1][retkey] = len(vals)
             return
         elif fnm == "CAS":
             self.pc += 1
