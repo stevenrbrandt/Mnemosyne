@@ -1,0 +1,14 @@
+fun main()
+    trace(false)
+    const fd := open("/etc/group","r")
+    atomic line := " "
+    for i in 0 to 4 #while line != ""
+        line = readline(fd)
+        print("line: ",line)
+    end
+    const files := listdir(".")
+    print("len(files)=",len(files))
+    for i in 0 to min(5,len(files)-1)
+      println(i,": ",files[i])
+    end
+end

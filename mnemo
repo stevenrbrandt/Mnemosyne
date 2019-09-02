@@ -123,7 +123,8 @@ class Interp:
         self.rets = []
         self.vars = [
             {"true":Var("true",True,"const"),
-             "false":Var("false",False,"const")}]
+             "false":Var("false",False,"const"),
+             "none":Var("none",None,"const")}]
         self.loads = [{}]
         self.inst = []
         self.indent = 0
@@ -133,11 +134,29 @@ class Interp:
 
         # Find functions
         for i in range(len(self.inst)):
-            g = self.inst[i][0]
-            nm = g.getPatternName() 
+            gm = self.inst[i][0]
+            nm = gm.getPatternName() 
             if nm == "start_fn":
-                fnm = g.group(0).substring()
+                fnm = gm.group(0).substring()
                 self.vars[0][fnm] = Var("fname",Func(i+1),"const")
+
+        self.load_sys_functions("lib/sys.mn")
+
+    def load_sys_functions(self,fname):
+        with open(fname,"r") as fd:
+            fc = fd.read()
+        files[fc] = fname
+        m2 = Matcher(g,g.default_rule,fc)
+        if not m2.matches():
+            m2.showError()
+        for k in range(m2.gr.groupCount()):
+            elem = m2.gr.group(k) 
+            nm = elem.getPatternName()
+            if nm == "fun_def":
+                func = elem.group(0).group(0).substring()
+                ind = len(self.inst)+1
+                self.vars[0][func] = Var("fun_def",Func(ind),"const")
+                self.load_instructions(elem)
 
     def diag(self):
         # Diagnostic of the instruction set
@@ -196,7 +215,7 @@ class Interp:
         elif nm in ["expr", "val", "num", "op", "array", "str", "name", "args", "vals", "body", "real", "elem", "alloc", "qual", "struct", "pairs", "pair", "sizer", "memcall"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
-        elif nm in ["start_fn", "call", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
+        elif nm in ["start_fn", "end", "returnstmt", "for", "if", "elif", "else", "import", "while"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
             self.inst += [(group,)]
@@ -349,9 +368,11 @@ class Interp:
             retval = None
             for k in range(vals.groupCount()):
                 args += [ self.getval(vals.group(k)) ]
-            eglobs = {"retval":None,"args":args}
+            eglobs = {"retval":None,"args":args,"Var":Var}
             exec(args[0],{},eglobs)
             retval = eglobs["retval"]
+            if type(retval) == list:
+                retval = [Var('&',di,'const') for di in retval]
             self.loads[-1][retkey] = retval
             return True
         elif fnm == "trace":
@@ -375,6 +396,7 @@ class Interp:
         elif fnm == "spawn":
             vals = expr.group(1)
             newthread = Interp(self.gr)
+            newthread.trace = False
             newthread.indent = 0
             for k in self.vars[0].keys():
                 newthread.vars[0][k] = self.vars[0][k]
@@ -431,7 +453,10 @@ class Interp:
         # Why is this sometimes expr?
         if mfnm == "expr" or mfnm == "name":
             fname = expr.group(0).substring()
-            funinst = self.addr(self.vars[0][fname].get())
+            try:
+                funinst = self.addr(self.vars[0][fname].get())
+            except KeyError as ke:
+                self.die(str(ke))
         elif mfnm == "memcall":
             add_self = 1
             fname = expr.group(0).substring()
@@ -594,9 +619,6 @@ class Interp:
                 raise Exception()
             else:
                 raise Exception(nm)
-        elif nm == "call":
-            self.start_call(s,s.start)
-            return True
         elif nm == "end":
             if len(self.stack) == 0:
                 return False
@@ -658,9 +680,10 @@ class Interp:
             funs = []
             for i in range(vals.groupCount()):
                 funs += [vals.group(i).substring()]
-            print("funs:",funs)
             with open(fname,"r") as fd:
                 fc = fd.read()
+
+            # Import
             files[fc] = fname
             m2 = Matcher(g,g.default_rule,fc)
             if not m2.matches():
@@ -732,7 +755,7 @@ if "main" in interp.vars[0]:
     maing = interp.inst[mainloc-1][0]
     main_arg_count = maing.group(1).groupCount()
     #interp.vars += [{}]
-    expr = Group("call","",0,0)
+    expr = Group("fun","",0,0)
     addgr(expr,"name","main")
     vals = addgr(expr,"vals","")
     if main_arg_count == 1:
