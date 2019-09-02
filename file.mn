@@ -1,3 +1,4 @@
+from "lib/math.mn" import sin
 fun main()
     trace(false)
     const fd := open("/etc/group","r")
@@ -11,4 +12,5 @@ fun main()
     for i in 0 to min(5,len(files)-1)
       println(i,": ",files[i])
     end
+    println(sin(5))
 end

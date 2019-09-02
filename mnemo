@@ -1,9 +1,14 @@
 #!/usr/bin/python3
 from Piraha import *
-import sys
+import sys, os
 from random import randint
 
 files = {}
+
+path_to_mnemo = os.path.dirname(os.path.realpath(sys.argv[0]))
+mnemo_path = [path_to_mnemo, "."]
+if "MNEMO_PATH" in os.environ:
+    mnemo_path += os.environ["MNEMO_PATH"].split(":")
 
 if sys.argv[1] == "--bw":
     sys.argv = sys.argv[1:]
@@ -17,7 +22,7 @@ INDENT = "  "
 threads = []
 
 g = Grammar()
-compileFile(g,"mnemo.peg")
+compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
 with open(sys.argv[1]) as fd:
     fc = fd.read()
 files[fc] = sys.argv[1]
@@ -140,7 +145,7 @@ class Interp:
                 fnm = gm.group(0).substring()
                 self.vars[0][fnm] = Var("fname",Func(i+1),"const")
 
-        self.load_sys_functions("lib/sys.mn")
+        self.load_sys_functions(os.path.join(mnemo_path[0],"lib/sys.mn"))
 
     def load_sys_functions(self,fname):
         with open(fname,"r") as fd:
@@ -680,6 +685,14 @@ class Interp:
             funs = []
             for i in range(vals.groupCount()):
                 funs += [vals.group(i).substring()]
+
+            # Locate path
+            for path in mnemo_path:
+                ftemp = os.path.join(path, fname)
+                if os.path.exists(ftemp):
+                    fname = ftemp
+                    break
+
             with open(fname,"r") as fd:
                 fc = fd.read()
 
@@ -715,6 +728,8 @@ class Interp:
             return True
         raise Exception(s.dump())
         return False
+
+## BEGIN MAIN CODE
 
 interp = Interp(m.gr)
 
