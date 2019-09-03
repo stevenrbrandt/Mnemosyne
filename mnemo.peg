@@ -1,5 +1,5 @@
 skipper=([ \t\n\r]|\#.*)*\b
-keywords=(for|if|while|else|elif|end|fun|to|from|return|new|safe|regular|atomic)
+keywords=(for|if|while|else|elif|end|fun|to|from|return|new|safe|regular|atomic|break|continue)
 name=(?!{-keywords}\b)[a-zA-Z][a-zA-Z0-9_]*
 str = "(\\[\\\"]|[^\\"])*"
 cmp = (<=|>=|==|!=|<|>|and|or|xor)
@@ -38,7 +38,9 @@ start_fn = fun {name} \( {args} \)
 end = end
 ifstmt = {if} ({body} )*({elif} ({body} )*)?({else} ({body} )*)?{end}
 forstmt = {for} ({-body} )*{end}
-body = ({def}|{assign}|{fun}|{ifstmt}|{forstmt}|{whilestmt}|{returnstmt})
+breakstmt = break
+continue = continue
+body = ({def}|{assign}|{fun}|{ifstmt}|{forstmt}|{whilestmt}|{returnstmt}|{breakstmt}|{continue})
 fun_def = {start_fn} ({-body} )*{end}
 random = {brk}
 prog = ^( {def}| {fun_def}| {import})* $

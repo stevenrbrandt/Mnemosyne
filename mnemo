@@ -185,6 +185,8 @@ class Interp:
             load = Group("load",group.text,group.start,group.end)
             load.children += [group]
             self.inst += [(load,)]
+        elif nm == "breakstmt" or nm == "continue":
+            self.inst += [(group,)]
         elif nm == "ifstmt":
             prelist = []
             ilist = []
@@ -725,6 +727,25 @@ class Interp:
                 self.pc = self.inst[self.pc][1] + 1
             else:
                 raise Exception(val)
+            return True
+        elif nm == "breakstmt" or nm == "continue":
+            while self.pc < len(self.inst):
+                step_info = self.inst[self.pc]
+                if step_info[0].getPatternName() == "end":
+                    endix = step_info[1]
+                    start_info = self.inst[endix]
+                    if start_info[0].getPatternName() == "for":
+                        #ends = start_info[0].getPatternName()
+                        if nm == "breakstmt":
+                            loopvar = start_info[0].group(0).substring()
+                            del self.vars[-1][loopvar]
+                            self.pc += 1
+                        return True
+                    elif start_info[0].getPatternName() in ["load", "while"]:
+                        if nm == "breakstmt":
+                            self.pc += 1
+                        return True
+                self.pc += 1
             return True
         raise Exception(s.dump())
         return False
