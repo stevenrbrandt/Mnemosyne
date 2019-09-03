@@ -1,0 +1,27 @@
+fun main()
+    trace(false)
+    atomic a := new atomic 5 of (new atomic 8 of "$")
+    atomic col := new atomic []
+    for i in 0 to len(a)-1
+        col = a[i]
+        for j in 0 to len(col)-1
+            print(col[j]," ")
+        end
+        println()
+    end
+    println()
+    atomic i := 0
+    atomic j := 0
+    while i < len(a)
+        j = 0
+        col = a[i]
+        while j < len(a[i])
+          print(col[j]," ")
+          j = j + 1
+        end
+        println()
+        i = i + 1
+    end
+    println()
+    println("len(a)=",len(a))
+end
