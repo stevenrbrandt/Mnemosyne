@@ -1,0 +1,29 @@
+fun open(fn,rw)
+    return pyexec("retval = open(args[1])",fn,rw)
+end
+fun readline(fn)
+    return pyexec("retval = args[1].readline()",fn)
+end
+fun close(fn)
+    return pyexec("retval = args[1].close()",fn)
+end
+fun listdir(d)
+    return pyexec("import os; retval = os.listdir(args[1])",d)
+end
+fun keys(d)
+    return pyexec("retval = [x for x in args[1].keys()]",d)
+end
+fun min(a,b)
+    if a < b
+        return a
+    else
+        return b
+    end
+end
+fun max(a,b)
+    if a > b
+        return a
+    else
+        return b
+    end
+end

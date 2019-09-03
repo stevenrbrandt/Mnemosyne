@@ -8,4 +8,8 @@ fun main()
     print(obj["a"],obj["b"],obj["c"])
     const x := obj.printa()
     obj.printa()
+    atomic k := keys(obj)
+    for i in 0 to len(k)-1
+        println(i,": ",k[i])
+    end
 end
