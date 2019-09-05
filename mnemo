@@ -1,17 +1,28 @@
 #!/usr/bin/python3
 from Piraha import *
 import sys, os
-from random import randint
+from random import randint, seed
+import argparse
 
+parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
+parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
+parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
+parser.add_argument('file', type=str, help='A Mnemosyne source file')
+pres=parser.parse_args(sys.argv[1:])
+
+DIV = '::'
 files = {}
+logfd = open("log.txt","w")
+sval = pres.seed
+print("seed=%d" % sval,file=logfd)
+seed(sval)
 
 path_to_mnemo = os.path.dirname(os.path.realpath(sys.argv[0]))
 mnemo_path = [path_to_mnemo, "."]
 if "MNEMO_PATH" in os.environ:
     mnemo_path += os.environ["MNEMO_PATH"].split(":")
 
-if sys.argv[1] == "--bw":
-    sys.argv = sys.argv[1:]
+if pres.bw:
     def colored(x,_):
         return x
 else:
@@ -23,7 +34,7 @@ threads = []
 
 g = Grammar()
 compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
-with open(sys.argv[1]) as fd:
+with open(pres.file) as fd:
     fc = fd.read()
 files[fc] = sys.argv[1]
 m = Matcher(g,g.default_rule,fc)
@@ -473,6 +484,7 @@ class Interp:
             raise Exception(mfnm)
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
+        print(str(self.id),DIV,"start call: ",fname,sep='',file=logfd)
         self.indent += 1
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
@@ -505,7 +517,8 @@ class Interp:
 
         self.loads[-1][retkey] = retval
         if self.trace:
-            print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call %d->%s" % (retkey, loadstr(retval)),"green"),sep='')
+            print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call->%s" % (loadstr(retval)),"green"),sep='')
+        print(str(self.id),DIV,"end call->%s" % (loadstr(retval)),sep='',file=logfd)
     def step(self):
         global threads
         assert self.pc >= 0,str(self.pc)
@@ -514,24 +527,29 @@ class Interp:
         if self.delay > 0:
             if self.trace:
                 print(INDENT*self.indent,colored("%d: " % self.id,"blue"),colored("delay","green"),sep='')
+            print("%d: " % self.id,"delay",sep='',file=logfd)
             self.delay -= 1
             return True
         s = self.inst[self.pc][0]
         nm = s.getPatternName()
         if nm == "load":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
+            print(str(self.id),DIV,"line: "+str(s.linenum())," ","load: "+s.substring(),sep='',end=' ',file=logfd)
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
         elif nm == "store":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
+            print(str(self.id)+": ","line: "+str(s.linenum())," ","finish: "+s.substring(),sep='',file=logfd)
         elif nm == "assign":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
+            print(str(self.id),DIV,"line: "+str(s.linenum())," ","start: "+s.substring(),sep='',file=logfd)
         else:
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("step: "+str(self.pc),"green")," ",colored(s.substring(),"blue"),sep='')
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored(s.substring(),"blue"),sep='')
+            print(str(self.id),DIV,"line: "+str(s.linenum())," ",s.substring(),sep='',file=logfd)
         if nm == "start_fn":
             self.pc = self.inst[self.pc][1]+1
             return True
@@ -558,12 +576,14 @@ class Interp:
                 self.loads[-1][s.group(0).start] = val
                 if self.trace:
                     print(colored("-> "+loadstr(val),"yellow"))
+                print("-> "+loadstr(val),file=logfd)
                 self.pc += 1
                 return True
             elif s.group(0).getPatternName() == "fun":
                 expr = s.group(0)
                 if self.trace:
                     print()
+                print(file=logfd)
                 self.start_call(expr,s.start)
                 return True
             else:
