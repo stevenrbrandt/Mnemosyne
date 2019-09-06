@@ -7,6 +7,7 @@ import argparse
 parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
 parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
 parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
+parser.add_argument('--dbg', action='store_true', default=False, help='turn on debugging')
 parser.add_argument('file', type=str, help='A Mnemosyne source file')
 pres=parser.parse_args(sys.argv[1:])
 
@@ -16,6 +17,7 @@ logfd = open("log.txt","w")
 sval = pres.seed
 print("seed=%d" % sval,file=logfd)
 seed(sval)
+debug = False
 
 path_to_mnemo = os.path.dirname(os.path.realpath(sys.argv[0]))
 mnemo_path = [path_to_mnemo, "."]
@@ -368,7 +370,7 @@ class Interp:
         #raise Exception("die")
         exit(0)
     def start_call(self,expr,retkey):
-        global threads
+        global threads, debug
         ####
         fnm = expr.group(0).substring()
         if fnm == "print" or fnm == "println":
@@ -414,7 +416,7 @@ class Interp:
         elif fnm == "spawn":
             vals = expr.group(1)
             newthread = Interp(self.gr)
-            newthread.trace = False
+            newthread.trace = debug
             newthread.indent = 0
             for k in self.vars[0].keys():
                 newthread.vars[0][k] = self.vars[0][k]
@@ -484,6 +486,8 @@ class Interp:
             raise Exception(mfnm)
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
+        if pres.dbg and fname == "main":
+            debug = True
         print(str(self.id),DIV,"start call: ",fname,sep='',file=logfd)
         self.indent += 1
         funval = self.inst[funinst-1][0]
@@ -519,9 +523,10 @@ class Interp:
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call->%s" % (loadstr(retval)),"green"),sep='')
         print(str(self.id),DIV,"end call->%s" % (loadstr(retval)),sep='',file=logfd)
-    def step(self):
+    def step(self,feedback):
         global threads
         assert self.pc >= 0,str(self.pc)
+        feedback[0] = False
         if self.pc >= len(self.inst):
             return False
         if self.delay > 0:
@@ -538,6 +543,7 @@ class Interp:
             print(str(self.id),DIV,"line: "+str(s.linenum())," ","load: "+s.substring(),sep='',end=' ',file=logfd)
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
+            feedback[0] = True
         elif nm == "store":
             if self.trace:
                 print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
@@ -779,6 +785,7 @@ threads += [interp]
 interp.pc = 0
 
 def run_step():
+    global debug
     while True:
         lo = 0
         hi = len(threads)-1
@@ -788,10 +795,40 @@ def run_step():
             tno = lo
         else:
             tno = randint(lo, hi)
+
+        # The debugger
+        if debug:
+            while True:
+                print('$ ',end='')
+                sys.stdout.flush()
+                cmd = sys.stdin.readline()
+                if cmd == "":
+                    debug = False
+                    break
+                rm = re.match(r'\s*step\s+(\d+)',cmd)
+                if rm:
+                    tnum = int(rm.group(1))
+                    tinp = None
+                    for k in range(len(threads)):
+                        if threads[k].id == tnum:
+                            tinp = k
+                    if tinp is None:
+                        print(colored("No such thread: "+rm.group(1),"red"),end=' threads: ')
+                        for t in threads:
+                            print(t.id,end=' ')
+                        print()
+                    else:
+                        tno = tinp
+                        break
+
         thread = threads[tno]
-        if not thread.step():
+        feedback = [False]
+        if not thread.step(feedback):
             del threads[tno]
         else:
+            while feedback[0]:
+                if not thread.step(feedback):
+                    break
             return True
 
 def addgr(gr,sgr,ss):
