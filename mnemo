@@ -61,7 +61,7 @@ class Func:
     def __init__(self,addr):
         self.addr = addr
     def __repr__(self):
-        return "Func(%d)" % self.addr
+        return "Func(addr=%d)" % self.addr
 
 class BadAddress:
     pass
@@ -73,6 +73,11 @@ class Var:
         self.oldval = None
         self.qual = qual
         self.finished = True
+    def show(self):
+        if self.finished:
+            print(self.qual,": ",self.val,sep='')
+        else:
+            print(self.qual,": ",self.oldval," => ",self.val,sep='')
     def check(self):
         assert self.qual in ["atomic","const","regular","safe"]
     def set(self,v):
@@ -797,6 +802,7 @@ def run_step():
             tno = randint(lo, hi)
 
         # The debugger
+        stack_wait = 0
         if debug:
             while True:
                 print('$ ',end='')
@@ -805,6 +811,26 @@ def run_step():
                 if cmd == "":
                     debug = False
                     break
+
+                rm = re.match(r'\s*print\s*(\w+)',cmd)
+                if rm:
+                    vname = rm.group(1)
+                    for th in threads:
+                        if vname in th.vars[0]:
+                            print("thread:",th.id,"global:",vname,"=",end=' ')
+                            th.vars[0][vname].show()
+                        elif vname in th.vars[-1]:
+                            print("thread:",th.id,"local:",vname,"=",end=' ')
+                            th.vars[-1][vname].show()
+                    continue
+
+                rm = re.match(r'\s*pc\b',cmd)
+                if rm:
+                    for th in threads:
+                        ex_item = th.inst[th.pc][0]
+                        print("thread:",th.id,"line:",ex_item.linenum(),"->",ex_item.substring())
+                    continue
+
                 rm = re.match(r'\s*step\s+(\d+)',cmd)
                 if rm:
                     tnum = int(rm.group(1))
@@ -820,6 +846,9 @@ def run_step():
                     else:
                         tno = tinp
                         break
+                    continue
+
+                print(colored("???","red"))
 
         thread = threads[tno]
         feedback = [False]
