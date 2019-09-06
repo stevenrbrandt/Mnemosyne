@@ -28,5 +28,6 @@ fun main(args)
     foo()
     const v := add(2,3)
     println(args[0]," ",args[1])
+    println(exists(args[0]))
     assert(v == 5)
 end

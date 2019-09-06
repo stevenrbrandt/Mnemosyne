@@ -1,3 +1,12 @@
+fun exists(fn)
+    return pyexec("import os; retval = os.path.exists(args[1])",fn)
+end
+fun chdir(d)
+    return pyexec("import os; retval = os.chdir(args[1])",fn)
+end
+fun getcwd()
+    return pyexec("import os; retval = os.getcwd()")
+end
 fun open(fn,rw)
     return pyexec("retval = open(args[1])",fn,rw)
 end
