@@ -9,6 +9,9 @@ fun add(a,b)
 end
 
 fun fib(n)
+    if n == 6
+        brk()
+    end
     if n < 2
         return n
     else

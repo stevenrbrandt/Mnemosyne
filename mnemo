@@ -38,7 +38,7 @@ g = Grammar()
 compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
 with open(pres.file) as fd:
     fc = fd.read()
-files[fc] = sys.argv[1]
+files[fc] = pres.file
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
     pass #print(m.gr.dump())
@@ -364,6 +364,15 @@ class Interp:
     def massert(self,test,msg):
         if not test:
             self.die(msg)
+    def stack_trace(self):
+        print("Stack for thread:",self.id)
+        self.stack += [self.pc] # Add current location to the stack
+        for k in range(len(self.stack)-1,-1,-1):
+            pc = self.stack[k]
+            if pc < len(self.inst):
+                pg = self.inst[pc][0]
+                print(" at file '%s' line %d: %s" % (filename(pg), pg.linenum(), pg.substring()))
+        self.stack = self.stack[:-1]
     def die(self,msg):
         print("Die:",msg)
         self.stack += [self.pc] # Add current location to the stack
@@ -444,6 +453,11 @@ class Interp:
             vid = found # Var("alive",found,"const")
             self.loads[-1][retkey] = vid
             return
+        elif fnm == "brk":
+            self.pc += 1
+            if pres.dbg:
+                debug = True
+            return True
         elif fnm == "len":
             self.pc += 1
             vals = self.getval(expr.group(1))
@@ -807,8 +821,21 @@ def run_step():
             while True:
                 print('$ ',end='')
                 sys.stdout.flush()
+
                 cmd = sys.stdin.readline()
+
                 if cmd == "":
+                    debug = False
+                    break
+
+                rm = re.match(r'\s*stack\b',cmd)
+                if rm:
+                    for th in threads:
+                        th.stack_trace()
+                    continue
+
+                rm = re.match(r'\s*(continue|cont|go)\b',cmd)
+                if rm:
                     debug = False
                     break
 
