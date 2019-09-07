@@ -10,6 +10,8 @@ fun main()
         println("No CAS")
     end
     CAS(v,5,4)
-    assert(v == 3)
-    v[10] = 1
+    assert(v != 3)
+    safe k := 2
+    v[k] = 15
+    assert(v[k] == 15)
 end

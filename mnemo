@@ -8,6 +8,8 @@ parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
 parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
 parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
 parser.add_argument('--dbg', action='store_true', default=False, help='turn on debugging')
+parser.add_argument('--parse', action='store_true', default=False, help='parse only')
+parser.add_argument('--inst', action='store_true', default=False, help='print instructions only')
 parser.add_argument('file', type=str, help='A Mnemosyne source file')
 pres=parser.parse_args(sys.argv[1:])
 
@@ -41,7 +43,8 @@ with open(pres.file) as fd:
 files[fc] = pres.file
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
-    pass #print(m.gr.dump())
+    if pres.parse:
+        exit(0)
 else:
     m.showError()
     raise Exception()
@@ -180,13 +183,16 @@ class Interp:
                 ind = len(self.inst)+1
                 self.vars[0][func] = Var("fun_def",Func(ind),"const")
                 self.load_instructions(elem)
+        if pres.inst:
+            self.diag()
+            exit(0)
 
     def diag(self):
         # Diagnostic of the instruction set
         for i in range(len(self.inst)):
             print(colored(str(i)+":","yellow"),end=' ')
             nm = self.inst[i][0].getPatternName()
-            if nm in ["load", "store", "assign"]:
+            if True: #nm in ["load", "store", "assign"]:
                 print(colored(nm,"red"),self.inst[i][0].substring(),end=' ')
             else:
                 print(colored(nm,"red"),end=' ')
@@ -197,7 +203,7 @@ class Interp:
 
     def load_instructions(self,group):
         nm = group.getPatternName()
-        if nm == "var" or nm == "fun":
+        if nm in ["var", "fun"]:
             for i in range(group.groupCount()):
                 self.load_instructions(group.group(i))
             load = Group("load",group.text,group.start,group.end)
@@ -232,6 +238,7 @@ class Interp:
                 self.inst[g] = (self.inst[g][0], k1)
         elif nm == "assign" or nm == "def":
             self.load_instructions(group.group(2))
+            self.load_instructions(group.group(0))
             self.inst += [(group,)]
             if nm == "assign":
                 store = Group("store",group.text,group.start,group.end)

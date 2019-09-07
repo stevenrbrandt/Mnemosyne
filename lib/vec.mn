@@ -1,0 +1,31 @@
+fun vector_add(v,a)
+   const m := v["len_"]
+   if m >= v["size_"]
+      atomic s2 := 2*v["size_"]
+      atomic n := new atomic s2 of 0
+      for i in 0 to v["size_"]-1
+         n[i] = v["data_"][i]
+      end
+      v["data_"] = n
+      v["size_"] = s2
+   end
+
+   atomic d := v["data_"]
+   println("d: ",d)
+   println("m: ",m)
+   d[m] = a
+   v["len_"] = m+1
+end
+fun vector_size(v)
+    return v["len_"]
+end
+fun vector(size)
+    atomic arr := new atomic {
+      "size_" : size,
+      "len_"  : 0,
+      "data_" : new atomic size of 0,
+      "add"   : vector_add,
+      "size"  : vector_size
+    }
+    return arr
+end
