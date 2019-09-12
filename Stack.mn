@@ -1,0 +1,88 @@
+fun lock(self)
+    const ar := self["val"]
+    while CAS(ar,0,1) == false
+    end
+end
+
+fun unlock(self)
+    const ar := self["val"]
+    ar[0] = 0
+end
+
+fun mkMutex()
+    return new atomic {
+        "val":new atomic [0],
+        "lock":lock,
+        "unlock":unlock
+    }
+end
+
+fun condwait(self)
+    const mutex := self["mutex"]
+    const cno := self["condnum"]
+    mutex.unlock()
+    while cno == self["condnum"]
+    end
+    mutex.lock()
+end
+
+fun condnotify(self)
+    const cno := self["condnum"]
+    self["condnum"] = cno + 1
+end
+
+fun mkCond(m)
+    return new atomic {
+        "mutex":m,
+        "condnum":c,
+        "wait":condwait,
+        "notify":condnotify
+    }
+end
+
+fun push(self,v)
+    const mutex := self["mutex"]
+    mutex.lock()
+    const pos := self["pos"]
+    const val := self["values"]
+    if pos < len(val)
+        val[pos] = v
+        self["pos"] = pos + 1
+    end
+    mutex.unlock()
+end
+
+fun pop(self)
+    const mutex := self["mutex"]
+    mutex.lock()
+    const pos := self["pos"]-1
+    const val := self["values"]
+    if pos >= 0
+        const v := val[pos]
+        self["pos"] = pos
+    end
+    mutex.unlock()
+    return v
+end
+
+fun mkStack(cap)
+    return new atomic {
+        "mutex":mkMutex(),
+        "cond":0,
+        "pos": 0,
+        "values": new atomic cap of none,
+        "push":push,
+        "pop": pop
+    }
+end
+
+fun main()
+    trace(false)
+    const s := mkStack(10)
+    s.push(3)
+    s.push(7)
+    s.push(5)
+    println("s=",s.pop())
+    println("s=",s.pop())
+    println("s=",s.pop())
+end
