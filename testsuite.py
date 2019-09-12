@@ -25,6 +25,7 @@ output = {
     "vec.mn":(["a.size()=1"],["Assertion failure"]),
     "while.mn":(["i=9"],["Assertion failure"]),
     "RegIntMRSW.mn":([],["Assertion failure"]),
+    "Race.mn":(["val=550"],["Assertion failure"]),
 }
 
 for f in os.listdir("."):
@@ -32,7 +33,7 @@ for f in os.listdir("."):
         if f not in output:
             print(colored("Skipping:","red"),f)
             continue
-        print(colored("Running:","green"),f)
+        print(colored("Running:","blue"),f)
         p = s.Popen(["mnemo","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
         o, e = p.communicate(0)
         has, hasnot = output[f]
@@ -43,3 +44,4 @@ for f in os.listdir("."):
             if h in o:
                 raise Exception(h+" was in output")
     
+print(colored("Success","green"))

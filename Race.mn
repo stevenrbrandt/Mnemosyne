@@ -1,0 +1,47 @@
+fun lock(self)
+    const ar := self["val"]
+    while CAS(ar,0,1) == false
+    end
+end
+
+fun unlock(self)
+    const ar := self["val"]
+    ar[0] = 0
+end
+
+fun mkMutex()
+    return new atomic {
+        "val":new atomic [0],
+        "lock":lock,
+        "unlock":unlock
+    }
+end
+
+atomic val := 0
+atomic mutex := mkMutex()
+atomic nolock := false
+
+fun thread()
+    for i in 0 to 49
+        if nolock
+            val = val + 1
+        else
+            mutex.lock()
+            val = val + 1
+            mutex.unlock()
+        end
+    end
+end
+
+fun main(args)
+    const n := len(args)
+    if args[n-1] == "nolock"
+        nolock = true
+    end
+    for i in 0 to 10
+        spawn(thread)
+    end
+    while NumThreads() > 1
+    end
+    println("val=",val)
+end

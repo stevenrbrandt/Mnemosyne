@@ -10,7 +10,7 @@ parser.add_argument('--bw', action='store_true', default=False, help='disable te
 parser.add_argument('--dbg', action='store_true', default=False, help='turn on debugging')
 parser.add_argument('--parse', action='store_true', default=False, help='parse only')
 parser.add_argument('--inst', action='store_true', default=False, help='print instructions only')
-parser.add_argument('file', type=str, help='A Mnemosyne source file')
+parser.add_argument('file', type=str, help='A Mnemosyne source file',nargs='+')
 pres=parser.parse_args(sys.argv[1:])
 
 DIV = '::'
@@ -38,9 +38,9 @@ threads = []
 
 g = Grammar()
 compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
-with open(pres.file) as fd:
+with open(pres.file[0]) as fd:
     fc = fd.read()
-files[fc] = pres.file
+files[fc] = pres.file[0]
 m = Matcher(g,g.default_rule,fc)
 if m.matches():
     if pres.parse:
