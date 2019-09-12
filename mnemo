@@ -369,6 +369,8 @@ class Interp:
                 ar += self.getval(expr.group(k))
             return ar
 
+        print("expr:",expr.dump())
+        print("line:",expr.linenum())
         raise Exception(nm)
     def massert(self,test,msg):
         if not test:
@@ -472,6 +474,14 @@ class Interp:
             vals = self.getval(expr.group(1))
             self.loads[-1][retkey] = len(vals)
             return
+        elif fnm == "ThreadID":
+            self.pc += 1
+            self.loads[-1][retkey] = self.id
+            return
+        elif fnm == "NumThreads":
+            self.pc += 1
+            self.loads[-1][retkey] = len(threads)
+            return
         elif fnm == "CAS":
             self.pc += 1
             vals = expr.group(1)
@@ -520,7 +530,11 @@ class Interp:
         self.indent += 1
         funval = self.inst[funinst-1][0]
         argdefs = funval.group(1)
-        argvals = expr.group(1)
+        if expr.groupCount() > 1:
+            argvals = expr.group(1)
+        else:
+            # Handle no args
+            argvals = Group("","",0,0)
         n1 = argdefs.groupCount()
         n2 = argvals.groupCount()+add_self
         self.massert(n1 == n2,"Arity mismatch for '"+fname+"()' %d != %d" % (n1,n2))
@@ -596,7 +610,11 @@ class Interp:
                 else:
                     elg = vg.group(0)
                     vname = elg.group(0).substring()
-                    elems = elg.group(1).children
+                    elems = []
+                    if elg.group(1).getPatternName() == "expr":
+                        elems = [elg.group(1)]
+                    else:
+                        elems = elg.group(1).children
                 if vname in self.vars[-1]:
                     var = self.vars[-1][vname]
                 elif vname in self.vars[0]:
@@ -605,7 +623,12 @@ class Interp:
                     self.die('No variable named: '+vname)
                 for ch in elems:
                     chv = self.getval(ch)
-                    var = var.get()[chv]
+                    try:
+                       var = var.get()[chv]
+                    except IndexError as ie:
+                       self.die("Index error: "+str(chv))
+                    except KeyError as ke:
+                       self.die("Key Error: "+str(chv))
                 val = var.get()
                 self.loads[-1][s.group(0).start] = val
                 if self.trace:

@@ -1,0 +1,39 @@
+fun mkReg(n)
+    return new safe n of false
+end
+
+const n := 3 # number of threads
+
+const reg := mkReg(n)
+
+fun test()
+    const id := ThreadID()
+    println("id: ",id)
+    if id == (n-1)
+       # I am the writer
+       for j in 0 to n-1
+          println("j=",j)
+          reg[j] = true
+       end
+    else
+        # I am a reader
+        safe val := 0
+        while true
+            val = reg[id-1]
+            println("id:",id," val: ",val)
+            if val == true
+                return 0
+            end
+        end
+    end
+end
+
+fun main()
+    trace(false)
+    for i in 1 to n
+        spawn(test)
+    end
+    while NumThreads() > 1
+    end
+    return 0
+end
