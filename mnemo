@@ -315,6 +315,8 @@ class Interp:
                     return val1 or val2
                 elif op == "%":
                     return val1 % val2
+                elif op == "**":
+                    return val1 ** val2
                 raise Exception("op="+op)
         elif nm == "val":
             return self.getval(expr.group(0))

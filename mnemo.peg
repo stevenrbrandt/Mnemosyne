@@ -3,7 +3,7 @@ keywords=(for|if|while|else|elif|end|fun|to|from|return|new|safe|regular|atomic|
 name=(?!{-keywords}\b)[a-zA-Z][a-zA-Z0-9_]*
 str = "(\\[\\\"]|[^\\"])*"
 cmp = (<=|>=|==|!=|<|>|and|or|xor)
-op = ({-cmp}|[-+%*/])
+op = ({-cmp}|\*\*|[-+%*/])
 expr = {val}( {op} {val})?
 num = [0-9]+
 exp = (e[+-]?[0-9]+)
