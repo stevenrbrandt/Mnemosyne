@@ -67,7 +67,8 @@ class Func:
         return "Func(addr=%d)" % self.addr
 
 class BadAddress:
-    pass
+    def __repr__(self):
+        return "BadAddress"
 
 class Var:
     def __init__(self,name,val,qual):

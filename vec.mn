@@ -2,5 +2,5 @@ from "lib/vec.mn" import vector, vector_add, vector_size
 fun main()
     atomic a := vector(10)
     a.add(3)
-    print(a.size())
+    println("a.size()=",a.size())
 end
