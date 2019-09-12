@@ -22,6 +22,9 @@ end
 fun keys(d)
     return pyexec("retval = [x for x in args[1].keys()]",d)
 end
+fun randint(a,b)
+    return pyexec("import random; retval = random.randint(args[1],args[2])",a,b)
+end
 fun min(a,b)
     if a < b
         return a

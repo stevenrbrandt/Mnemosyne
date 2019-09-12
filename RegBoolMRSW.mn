@@ -1,0 +1,81 @@
+const n := 3 # number of threads
+
+fun safe_wr(self,val)
+    const reg := self["values"]
+    for i in 0 to n-1
+        reg[i] = val
+    end
+end
+
+fun safe_rd(self)
+    const id := ThreadID()
+    const reg := self["values"]
+    return reg[id-1]
+end
+
+fun mkSafeBoolMRSW(n)
+    return new safe {
+        "values": new safe n of false,
+        "write": safe_wr,
+        "read": safe_rd
+    }
+end
+
+#########################################
+
+fun reg_wr(self,val)
+    const old := self["old"]
+    const safev := self["safe"]
+    if old != val
+        safev.write(val)
+        self["old"] = val
+    end
+end
+
+fun reg_rd(self)
+    const safev := self["safe"]
+    return safev.read()
+end
+
+fun mkRegBoolMRSW(n)
+    return new safe {
+        "safe" : mkSafeBoolMRSW(n),
+        "old" : false,
+        "write" : reg_wr,
+        "read" : reg_rd
+    }
+end
+
+#########################################
+
+const reg := mkRegBoolMRSW(n)
+
+fun test()
+    const id := ThreadID()
+    println("id: ",id)
+    if id == (n-1)
+       # I am the writer
+       println("writer: ",id)
+       reg.write(true)
+    else
+        # I am a reader
+        safe val := 0
+        while true
+            val = reg.read()
+            println("id: ",id," val: ",val)
+            if val == true
+                return 0
+            end
+        end
+    end
+end
+
+fun main()
+    trace(false)
+    for i in 1 to n
+        spawn(test)
+    end
+    while NumThreads() > 1
+    end
+    return 0
+end

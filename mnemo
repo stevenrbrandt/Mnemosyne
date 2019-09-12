@@ -109,6 +109,8 @@ class Var:
                 val = randint(-1000,1000)
             elif type(self.val) == float:
                 val = 2000*(random()-.5)
+            elif type(self.val) == bool:
+                val = randint(0,1) == 0
             else:
                 val = BadAddress()
             return val

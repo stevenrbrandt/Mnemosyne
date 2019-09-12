@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import os, re, sys
 import subprocess as s
+from termcolor import colored
 
 output = {
     "SafeBoolMRSW.mn":(["id:3 val: True"],[]),
@@ -22,11 +23,15 @@ output = {
     "obj.mn":(["a=3"],[]),
     "vec.mn":(["a.size()=1"],[]),
     "while.mn":(["i=9"],[]),
+    "RegIntMRSW.mn":([],["Assertion failure"]),
 }
 
 for f in os.listdir("."):
     if re.match(r'.*\.mn$',f):
-        print("Running:",f)
+        if f not in output:
+            print(colored("Skipping:","red"),f)
+            continue
+        print(colored("Running:","green"),f)
         p = s.Popen(["mnemo","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
         o, e = p.communicate(0)
         has, hasnot = output[f]
