@@ -26,6 +26,7 @@ output = {
     "while.mn":(["i=9"],["Assertion failure"]),
     "RegIntMRSW.mn":([],["Assertion failure"]),
     "Race.mn":(["val=550"],["Assertion failure"]),
+    "Stack.mn":(["s=20"],["Assertion failure"]),
 }
 
 for f in os.listdir("."):

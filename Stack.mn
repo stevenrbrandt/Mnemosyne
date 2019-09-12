@@ -34,7 +34,7 @@ end
 fun mkCond(m)
     return new atomic {
         "mutex":m,
-        "condnum":c,
+        "condnum":0,
         "wait":condwait,
         "notify":condnotify
     }
@@ -43,32 +43,52 @@ end
 fun push(self,v)
     const mutex := self["mutex"]
     mutex.lock()
-    const pos := self["pos"]
+    atomic pos := self["pos"]
     const val := self["values"]
-    if pos < len(val)
-        val[pos] = v
-        self["pos"] = pos + 1
+
+    const empty := self["empty"]
+    const full := self["full"]
+
+    while pos == len(val)
+        full.wait()
+        pos = self["pos"]
     end
+    assert((pos >= 0) and (pos < len(val)))
+    val[pos] = v
+    self["pos"] = pos + 1
+    empty.notify()
     mutex.unlock()
 end
 
 fun pop(self)
     const mutex := self["mutex"]
     mutex.lock()
-    const pos := self["pos"]-1
+    atomic pos := self["pos"]-1
     const val := self["values"]
-    if pos >= 0
-        const v := val[pos]
-        self["pos"] = pos
+
+    const empty := self["empty"]
+    const full := self["full"]
+
+    while pos < 0
+        empty.wait()
+        pos = self["pos"]-1
     end
+    assert((pos >= 0) and (pos < len(val)))
+
+    const v := val[pos]
+    self["pos"] = pos
+    full.notify()
+
     mutex.unlock()
     return v
 end
 
 fun mkStack(cap)
+    const m := mkMutex()
     return new atomic {
-        "mutex":mkMutex(),
-        "cond":0,
+        "mutex":m,
+        "full":mkCond(m),
+        "empty":mkCond(m),
         "pos": 0,
         "values": new atomic cap of none,
         "push":push,
@@ -76,13 +96,26 @@ fun mkStack(cap)
     }
 end
 
+const s := mkStack(2)
+const lim := 20
+
+fun pusher()
+    for i in 0 to lim
+        s.push(i)
+    end
+end
+
+fun popper()
+    for i in 0 to lim
+        println("s=",s.pop())
+    end
+end
+
 fun main()
     trace(false)
-    const s := mkStack(10)
-    s.push(3)
-    s.push(7)
-    s.push(5)
-    println("s=",s.pop())
-    println("s=",s.pop())
-    println("s=",s.pop())
+    println("START")
+    spawn(popper)
+    spawn(pusher)
+    while NumThreads() > 1
+    end
 end
