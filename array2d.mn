@@ -1,6 +1,11 @@
 fun main()
     trace(false)
     atomic a := new atomic 5 of (new atomic 8 of "$")
+    for k in 0 to 4
+      for m in 0 to 7
+        a[k][m] = k + m
+      end
+    end
     atomic col := new atomic []
     for i in 0 to len(a)-1
         col = a[i]

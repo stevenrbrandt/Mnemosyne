@@ -6,7 +6,7 @@ from termcolor import colored
 output = {
     "SafeBoolMRSW.mn":(["id:3 val: True"],["Assertion failure"]),
     "arr.mn":(["CAS!"],["Assertion failure"]),
-    "array2d.mn":(["$ $ $ $ $ $ $ $","len(a)=5"],["Assertion failure"]),
+    "array2d.mn":(["0 1 2 3 4 5","7 8 9 10 11","len(a)=5"],["Assertion failure"]),
     "break.mn":(["Success 11 6"],["Assertion failure"]),
     "die.mn":(["at file 'die.mn' line 3: end",
                "at file 'die.mn' line 6: foo()",

@@ -351,8 +351,8 @@ class Interp:
             elif vnm == "sizer":
                 ar = []
                 count = self.getval(vals.group(0))
-                item = self.getval(vals.group(1))
                 for i in range(count):
+                    item = self.getval(vals.group(1))
                     ar += [Var("&",item,qual)]
                 return ar
             else:
