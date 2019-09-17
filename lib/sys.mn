@@ -25,6 +25,9 @@ end
 fun randint(a,b)
     return pyexec("import random; retval = random.randint(args[1],args[2])",a,b)
 end
+fun type(v)
+    return pyexec("retval = type(args[1]).__name__",v)
+end
 fun min(a,b)
     if a < b
         return a

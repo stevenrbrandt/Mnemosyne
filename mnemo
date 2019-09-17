@@ -628,6 +628,8 @@ class Interp:
                     chv = self.getval(ch)
                     try:
                        var = var.get()[chv]
+                    except TypeError as te:
+                       self.die("Not subscriptable: "+str(chv))
                     except IndexError as ie:
                        self.die("Index error: "+str(chv))
                     except KeyError as ke:
