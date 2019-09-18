@@ -16,6 +16,7 @@ fun update(me, nvals, ovals)
             end
         end
         if matched
+            assert(nvals[me] == values[me])
             values[me] = values[me] + 1
             println("thread: ",me," update: ",values[me])
             return 0

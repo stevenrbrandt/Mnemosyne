@@ -26,7 +26,7 @@ mnemo_path = [path_to_mnemo, "."]
 if "MNEMO_PATH" in os.environ:
     mnemo_path += os.environ["MNEMO_PATH"].split(":")
 
-if pres.bw:
+if pres.bw or not sys.stdout.isatty():
     def colored(x,_):
         return x
 else:
