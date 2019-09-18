@@ -1,0 +1,66 @@
+atomic values := new atomic [0,0,0]
+atomic snaps := new atomic 3 of (new atomic 3 of 0)
+
+fun update(me, nvals, ovals, moved)
+    for i in 0 to 2
+        ovals[i] = values[i]
+    end
+    atomic matched := true
+    atomic tmp := 0
+    while true
+        assert(type(nvals)=="list",type(nvals))
+        for i in 0 to 2
+            nvals[i] = values[i]
+            moved[i] = false
+        end
+        matched = true
+        for i in 0 to 2
+            if nvals[i] != ovals[i]
+                if moved[i]
+                    tmp = snaps[i]
+                    for j in 0 to 2
+                        nvals[j] = tmp[j]
+                    end
+                    matched = true
+                    println("thread: ",me," snap=",nvals[me])
+                    break
+                else
+                    matched = false
+                    moved[i] = true
+                end
+            end
+        end
+        if matched
+            snaps[me] = new atomic [nvals[0], nvals[1], nvals[2]]
+            if nvals[me] != values[me]
+                println("thread: ",me," n=",nvals[me]," v=",values[me])
+                assert(false)
+            end
+            values[me] = values[me] + 1
+            println("thread: ",me," update: ",values[me])
+            return 0
+        else
+            for i in 0 to 2
+                ovals[i] = nvals[i]
+            end
+            println("thread: ",me," FAIL")
+        end
+    end
+end
+
+fun worker(me)
+    atomic new_values := new atomic[0,0,0]
+    atomic old_values := new atomic[0,0,0]
+    atomic snap_values := new atomic[0,0,0]
+    atomic moved_values := new atomic[false,false,false]
+    while true
+        update(me, new_values, old_values, moved_values)
+    end
+end
+
+fun main()
+    trace(false)
+    spawn(worker,0)
+    spawn(worker,1)
+    worker(2)
+end
