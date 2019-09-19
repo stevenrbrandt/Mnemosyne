@@ -577,7 +577,7 @@ class Interp:
         if self.delay > 0:
             if self.trace:
                 print(INDENT*self.indent,colored("%d: " % self.id,"blue"),colored("delay","green"),sep='')
-            print("%d: " % self.id,"delay",sep='',file=logfd)
+            print("%d:: " % self.id,"delay",sep='',file=logfd)
             self.delay -= 1
             return True
         s = self.inst[self.pc][0]
@@ -592,7 +592,7 @@ class Interp:
         elif nm == "store":
             if self.trace:
                 print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
-            print(str(self.id)+": ","line: "+str(s.linenum())," ","finish: "+s.substring(),sep='',file=logfd)
+            print(str(self.id)+":: ","line: "+str(s.linenum())," ","finish: "+s.substring(),sep='',file=logfd)
         elif nm == "assign":
             if self.trace:
                 print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
