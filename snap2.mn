@@ -53,7 +53,8 @@ fun worker(me)
     atomic old_values := new atomic[0,0,0]
     atomic snap_values := new atomic[0,0,0]
     atomic moved_values := new atomic[false,false,false]
-    while true
+    #while true
+    for i in 0 to 1000
         update(me, new_values, old_values, moved_values)
     end
 end
@@ -63,4 +64,6 @@ fun main()
     spawn(worker,0)
     spawn(worker,1)
     worker(2)
+    while NumThreads() > 1
+    end
 end

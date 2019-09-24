@@ -30,7 +30,12 @@ if pres.bw or not sys.stdout.isatty():
     def colored(x,_):
         return x
 else:
-    from termcolor import colored
+    try:
+        from termcolor import colored
+    except ImportError:
+        print("Please run the command: 'pip3 install --user termcolor'")
+        print("or run mnemo with the --bw flag.")
+        exit(1)
 
 INDENT = "  "
 
