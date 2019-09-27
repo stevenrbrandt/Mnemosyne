@@ -4,6 +4,23 @@ import sys, os
 from random import randint, seed
 import argparse
 
+def print_debug_help():
+    print("""
+print var
+    Print the value of variable var
+
+step threadno
+    Tell thread threadno to execute one step
+
+pc
+    Print the program counters for all threads
+
+stack
+    Print a stack trace for all threads
+
+go or continue
+    Resume normal execution""")
+
 parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
 parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
 parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
@@ -917,6 +934,7 @@ def run_step():
                         break
                     continue
 
+                print_debug_help()
                 print(colored("???","red"))
 
         thread = threads[tno]
