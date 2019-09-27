@@ -1,0 +1,14 @@
+atomic ar := new atomic[2,3,4]
+
+fun foo(li,a)
+    println("li: ",li)
+    println("type: ",type(li))
+    println("len: ",len(li))
+    println("a: ",a)
+end
+
+fun main()
+    spawn(foo,ar,8)
+    while NumThreads() > 1
+    end
+end

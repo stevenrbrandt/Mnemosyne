@@ -351,6 +351,8 @@ class Interp:
             sval = expr.substring()
             return sval[1:-1]
         elif nm == "var" or nm == "fun":
+            if expr.start not in self.loads[-1]:
+                print("loads:",self.id,self.loads)
             return self.loads[-1][expr.start]
         elif nm == "real":
             return float(expr.substring())
@@ -419,25 +421,28 @@ class Interp:
                 print(" at file '%s' line %d: %s" % (filename(pg), pg.linenum(), pg.substring()))
         #raise Exception("die")
         exit(0)
+
     def start_call(self,expr,retkey):
+        vals = expr.group(1)
+        args = []
+        for k in range(vals.groupCount()):
+            args += [ self.getval(vals.group(k)) ]
+        self.start_call2(expr,retkey,args)
+
+    def start_call2(self,expr,retkey,args):
         global threads, debug
         ####
         fnm = expr.group(0).substring()
         if fnm == "print" or fnm == "println":
-            vals = expr.group(1)
-            for i in range(vals.groupCount()):
-                print(self.getval(vals.group(i)),end='')
+            for arg in args:
+                print(arg,end='')
             if fnm == "println":
                 print()
             self.pc += 1
             return True
         elif fnm == "pyexec":
-            vals = expr.group(1)
-            args = []
             self.pc += 1
             retval = None
-            for k in range(vals.groupCount()):
-                args += [ self.getval(vals.group(k)) ]
             eglobs = {"retval":None,"args":args,"Var":Var}
             exec(args[0],{},eglobs)
             retval = eglobs["retval"]
@@ -446,8 +451,7 @@ class Interp:
             self.loads[-1][retkey] = retval
             return True
         elif fnm == "trace":
-            vals = expr.group(1)
-            val = self.getval(vals.group(0))
+            val = args[0]
             if val == True:
                 self.trace = True
             elif val == False:
@@ -458,10 +462,9 @@ class Interp:
             return True
         elif fnm == "assert":
             self.pc += 1
-            vals = expr.group(1)
-            val = self.getval(vals.group(0))
+            val = args[0]
             if val != True:
-                self.die("Assertion failure: "+vals.substring())
+                self.die("Assertion failure: "+expr.substring())
             return True
         elif fnm == "spawn":
             vals = expr.group(1)
@@ -471,7 +474,12 @@ class Interp:
             for k in self.vars[0].keys():
                 newthread.vars[0][k] = self.vars[0][k]
             newthread.pc = len(self.inst)
-            newthread.start_call(vals,expr.start)
+
+            # Prepare spawn return location
+            if vals.groupCount()>1:
+                newthread.loads[-1][vals.group(1).start] = newthread.id # vid
+
+            newthread.start_call2(vals,expr.start,args[1:])
             threads += [newthread]
             self.pc += 1
             vid = Var("id",newthread.id,"const")
@@ -479,8 +487,7 @@ class Interp:
             return True
         elif fnm == "is_alive":
             self.pc += 1
-            vals = expr.group(1)
-            pid = self.getval(vals.group(0))
+            pid = args[0]
             found = False
             for th in threads:
                 if pid == th.id:
@@ -509,7 +516,6 @@ class Interp:
             return
         elif fnm == "CAS":
             self.pc += 1
-            vals = expr.group(1)
             vname = expr.group(1).group(0).substring()
             if vname in self.vars[-1]:
                 var = self.vars[-1][vname]
@@ -520,8 +526,8 @@ class Interp:
             self.massert(type(var.val) == list,"Arg 0 of CAS must be a list")
             self.massert(len(var.val) > 0,"Array arg of CAS must have length of 1 or more")
             self.massert(var.val[0].qual == "atomic","Arg 0 of CAS must be atomic")
-            oldval = self.getval(vals.group(1))
-            newval = self.getval(vals.group(2))
+            oldval = args[1]
+            newval = args[2]
             if var.val[0].val == oldval:
                 var.val[0].val = newval
                 var.val[0].storeFinish()
@@ -533,7 +539,7 @@ class Interp:
         ####
         mfnm = expr.group(0).getPatternName()
         add_self = 0
-        # Why is this sometimes expr?
+        # If we come here through spawn, we'll see expr
         if mfnm == "expr" or mfnm == "name":
             fname = expr.group(0).substring()
             try:
@@ -561,7 +567,9 @@ class Interp:
             # Handle no args
             argvals = Group("","",0,0)
         n1 = argdefs.groupCount()
-        n2 = argvals.groupCount()+add_self
+        #n2 = argvals.groupCount()+add_self
+        n2 = len(args)+add_self
+        print("n2 args:",args)
         self.massert(n1 == n2,"Arity mismatch for '"+fname+"()' %d != %d" % (n1,n2))
         self.vars += [{}]
         for i in range(argdefs.groupCount()):
@@ -569,7 +577,7 @@ class Interp:
             if add_self == 1 and i == 0:
                 argval = self.getval(expr.group(0).group(0))
             else:
-                argval = self.getval(argvals.group(i-add_self))
+                argval = args[i-add_self] #self.getval(argvals.group(i-add_self))
             argvar = Var(argname, argval, "const")
             self.vars[-1][argname] = argvar
         self.loads += [{}]

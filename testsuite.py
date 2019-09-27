@@ -27,6 +27,7 @@ output = {
     "RegIntMRSW.mn":([],["Assertion failure"]),
     "Race.mn":(["val=550"],["Assertion failure"]),
     "Stack.mn":(["s=20"],["Assertion failure"]),
+    "sp.mn":(["len: 3","a: 8"],["Assertion failure"]),
 }
 
 for f in os.listdir("."):
