@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 from Piraha import *
 import sys, os
 from random import randint, seed
