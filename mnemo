@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Union, Optional
 from piraha import Grammar, compileFile, Matcher, Group
 from piraha.colored import colored
 import sys, os
@@ -166,13 +166,13 @@ class Interp:
         self.gr = gr
         self.pc = -1
         self.stack : List[int] = []
-        self.rets : List[str] = []
+        self.rets : List[Union[str,int]] = []
         self.vars : List[Dict[str,Var]] = [
             {"true":Var("true",True,"const"),
              "false":Var("false",False,"const"),
              "none":Var("none",None,"const")}]
-        self.loads : List[Dict[int,Var]] = [{}]
-        self.inst : List[Tuple[Group]] = []
+        self.loads : List[Dict[Union[int,str],Union[int,Var]]] = [{}]
+        self.inst : List[Union[Tuple[Group],Tuple[Group,int]]] = []
         self.indent = 0
         self.delay = 0
         for i in range(gr.groupCount()):
@@ -250,7 +250,7 @@ class Interp:
             for k in range(len(ilist)-1):
                 k1 = ilist[k]
                 k2 = prelist[k+1]
-                self.inst[k1] = [self.inst[k1][0], k2]
+                self.inst[k1] = (self.inst[k1][0], k2)
             k1 = ilist[-1]
             k2 = ilist[0]
             self.inst[k1] = (self.inst[k1][0], k2)
@@ -394,10 +394,10 @@ class Interp:
         print("expr:",expr.dump())
         print("line:",expr.linenum())
         raise Exception(nm)
-    def massert(self,test,msg):
+    def massert(self,test : bool,msg : str)->None:
         if not test:
             self.die(msg)
-    def stack_trace(self):
+    def stack_trace(self)->None:
         print("Stack for thread:",self.id)
         self.stack += [self.pc] # Add current location to the stack
         for k in range(len(self.stack)-1,-1,-1):
@@ -406,7 +406,7 @@ class Interp:
                 pg = self.inst[pc][0]
                 print(" at file '%s' line %d: %s" % (filename(pg), pg.linenum(), pg.substring()))
         self.stack = self.stack[:-1]
-    def die(self,msg):
+    def die(self,msg : str)->None:
         print("Die:",msg)
         self.stack += [self.pc] # Add current location to the stack
         for k in range(len(self.stack)-1,-1,-1):
@@ -417,14 +417,14 @@ class Interp:
         #raise Exception("die")
         exit(0)
 
-    def start_call(self,expr,retkey):
+    def start_call(self,expr : Group,retkey : Union[str,int])->None:
         vals = expr.group(1)
         args = []
         for k in range(vals.groupCount()):
             args += [ self.getval(vals.group(k)) ]
         self.start_call2(expr,retkey,args)
 
-    def start_call2(self,expr,retkey,args):
+    def start_call2(self,expr : Group,retkey : Union[int,str],args : List[str])->None:
         global threads, debug
         ####
         fnm = expr.group(0).substring()
@@ -434,17 +434,17 @@ class Interp:
             if fnm == "println":
                 print()
             self.pc += 1
-            return True
+            return
         elif fnm == "pyexec":
             self.pc += 1
-            retval = None
+            retval : Any = None
             eglobs = {"retval":None,"args":args,"Var":Var}
             exec(args[0],{},eglobs)
             retval = eglobs["retval"]
             if type(retval) == list:
                 retval = [Var('&',di,'const') for di in retval]
             self.loads[-1][retkey] = retval
-            return True
+            return
         elif fnm == "trace":
             val = args[0]
             if val == True:
@@ -454,13 +454,13 @@ class Interp:
             else:
                 raise Exception(val)
             self.pc += 1
-            return True
+            return
         elif fnm == "assert":
             self.pc += 1
             val = args[0]
             if val != True:
                 self.die("Assertion failure: "+expr.substring())
-            return True
+            return
         elif fnm == "spawn":
             vals = expr.group(1)
             newthread = Interp(self.gr)
@@ -479,23 +479,23 @@ class Interp:
             self.pc += 1
             vid = Var("id",newthread.id,"const")
             self.loads[-1][retkey] = newthread.id # vid
-            return True
+            return
         elif fnm == "is_alive":
             self.pc += 1
             pid = args[0]
-            found = False
+            found : bool = False
             for th in threads:
                 if pid == th.id:
                     found = True
                     break
-            vid = found # Var("alive",found,"const")
-            self.loads[-1][retkey] = vid
+            vb = found # Var("alive",found,"const")
+            self.loads[-1][retkey] = vb
             return
         elif fnm == "brk":
             self.pc += 1
             if pres.dbg:
                 debug = True
-            return True
+            return
         elif fnm == "len":
             self.pc += 1
             vals = self.getval(expr.group(1))
@@ -579,6 +579,8 @@ class Interp:
         self.stack += [self.pc]
         self.rets += [retkey]
         self.pc = funinst
+        return
+
     def end_call(self,retval):
         self.indent -= 1
         self.pc = self.stack[-1]+1
