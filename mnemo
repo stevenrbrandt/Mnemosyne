@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-from Piraha import *
+from typing import Dict, Any, List, Tuple
+from piraha import Grammar, compileFile, Matcher, Group
+from piraha.colored import colored
 import sys, os
-from random import randint, seed
+from random import randint, seed, random
 import argparse
 
 def print_debug_help():
@@ -31,7 +33,7 @@ parser.add_argument('file', type=str, help='A Mnemosyne source file',nargs='+')
 pres=parser.parse_args(sys.argv[1:])
 
 DIV = '::'
-files = {}
+files : Dict[str,str] = {}
 logfd = open("log.txt","w")
 sval = pres.seed
 print("seed=%d" % sval,file=logfd)
@@ -43,17 +45,6 @@ mnemo_path = [path_to_mnemo, "."]
 if "MNEMO_PATH" in os.environ:
     mnemo_path += os.environ["MNEMO_PATH"].split(":")
 
-if pres.bw or not sys.stdout.isatty():
-    def colored(x,_):
-        return x
-else:
-    try:
-        from termcolor import colored
-    except ImportError:
-        print("Please run the command: 'pip3 install --user termcolor'")
-        print("or run mnemo with the --bw flag.")
-        exit(1)
-
 INDENT = "  "
 
 threads = []
@@ -62,8 +53,10 @@ g = Grammar()
 compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
 with open(pres.file[0]) as fd:
     fc = fd.read()
-files[fc] = pres.file[0]
-m = Matcher(g,g.default_rule,fc)
+k : str = fc
+v : str = pres.file[0]
+files[k] = v
+m = Matcher(g,"prog",fc)
 if m.matches():
     if pres.parse:
         exit(0)
@@ -71,10 +64,10 @@ else:
     m.showError()
     raise Exception()
 
-def filename(group):
+def filename(group:Group)->str:
     return files[group.text]
 
-def loadstr(item):
+def loadstr(item : Any)->str:
     if type(item) == list:
         return "Array[%d]" % len(item)
     elif type(item) == dict:
@@ -83,9 +76,9 @@ def loadstr(item):
         return str(item)
 
 class Func:
-    def __init__(self,addr):
+    def __init__(self,addr : int):
         self.addr = addr
-    def __repr__(self):
+    def __repr__(self)->str:
         return "Func(addr=%d)" % self.addr
 
 class BadAddress:
@@ -93,20 +86,20 @@ class BadAddress:
         return "BadAddress"
 
 class Var:
-    def __init__(self,name,val,qual):
+    def __init__(self,name : str,val : Any,qual : str):
         self.name = name
         self.val = val
         self.oldval = None
         self.qual = qual
         self.finished = True
-    def show(self):
+    def show(self)->None:
         if self.finished:
             print(self.qual,": ",self.val,sep='')
         else:
             print(self.qual,": ",self.oldval," => ",self.val,sep='')
     def check(self):
         assert self.qual in ["atomic","const","regular","safe"]
-    def set(self,v):
+    def set(self,v : Any)->None:
         self.finished = False
         self.oldval = self.val
         if self.val is None:
@@ -114,7 +107,7 @@ class Var:
         else:
             assert self.qual != "const", "Attempt to set a constant variable"
             self.val = v
-    def get(self):
+    def get(self)->Any:
         if self.finished:
             return self.val
         elif self.qual == "atomic":
@@ -127,6 +120,7 @@ class Var:
             else:
                 return self.val
         elif self.qual == "safe":
+            val : Any = None
             if type(self.val) == int:
                 val = randint(-1000,1000)
             elif type(self.val) == float:
@@ -138,30 +132,31 @@ class Var:
             return val
         else:
             raise Exception(self.qual)
-    def __repr__(self):
+    def __repr__(self)->str:
         return "Var(%s,%s)" % (self.qual, type(self.val).__name__ )
-    def storeFinish(self):
+    def storeFinish(self)->None:
         self.finished = True
 
 thread_seq = 0
 
 class Interp:
-    def getvar(self,vname):
-        if vname in self.vars[-1][vname]:
+    def getvar(self,vname : str)->Var:
+        if vname in self.vars[-1]:
             return self.vars[-1][vname]
-        elif vname in self.vars[0][vname]:
+        elif vname in self.vars[0]:
             return self.vars[0][vname]
         else:
-            self.massert(false,"Invalid variable: '%s'" % vname)
+            self.die("Invalid variable: '%s'" % vname)
+            raise Exception() # Cannot get here
 
-    def addr(self,f):
+    def addr(self,f : Func)->int:
         self.massert(hasattr(f,"addr"),"Not a function object: "+str(f))
         return f.addr
         
-    def done(self):
+    def done(self)->bool:
         return len(self.stack) == 0
 
-    def __init__(self,gr):
+    def __init__(self,gr : Group):
         global thread_seq
 
         self.id = thread_seq
@@ -170,14 +165,14 @@ class Interp:
         self.trace = True
         self.gr = gr
         self.pc = -1
-        self.stack = []
-        self.rets = []
-        self.vars = [
+        self.stack : List[int] = []
+        self.rets : List[str] = []
+        self.vars : List[Dict[str,Var]] = [
             {"true":Var("true",True,"const"),
              "false":Var("false",False,"const"),
              "none":Var("none",None,"const")}]
-        self.loads = [{}]
-        self.inst = []
+        self.loads : List[Dict[int,Var]] = [{}]
+        self.inst : List[Tuple[Group]] = []
         self.indent = 0
         self.delay = 0
         for i in range(gr.groupCount()):
@@ -193,11 +188,11 @@ class Interp:
 
         self.load_sys_functions(os.path.join(mnemo_path[0],"lib/sys.mn"))
 
-    def load_sys_functions(self,fname):
+    def load_sys_functions(self,fname : str):
         with open(fname,"r") as fd:
             fc = fd.read()
         files[fc] = fname
-        m2 = Matcher(g,g.default_rule,fc)
+        m2 = Matcher(g,"prog",fc)
         if not m2.matches():
             m2.showError()
         for k in range(m2.gr.groupCount()):
@@ -212,7 +207,7 @@ class Interp:
             self.diag()
             exit(0)
 
-    def diag(self):
+    def diag(self)->None:
         # Diagnostic of the instruction set
         for i in range(len(self.inst)):
             print(colored(str(i)+":","yellow"),end=' ')
@@ -226,7 +221,7 @@ class Interp:
             print()
         print('=====')
 
-    def load_instructions(self,group):
+    def load_instructions(self,group:Group):
         nm = group.getPatternName()
         if nm in ["var", "fun"]:
             for i in range(group.groupCount()):
@@ -255,7 +250,7 @@ class Interp:
             for k in range(len(ilist)-1):
                 k1 = ilist[k]
                 k2 = prelist[k+1]
-                self.inst[k1] = (self.inst[k1][0], k2)
+                self.inst[k1] = [self.inst[k1][0], k2]
             k1 = ilist[-1]
             k2 = ilist[0]
             self.inst[k1] = (self.inst[k1][0], k2)
@@ -294,7 +289,7 @@ class Interp:
                 self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
         else:
             raise Exception(nm)
-    def getval(self,expr):
+    def getval(self,expr : Group):
         nm = expr.getPatternName()
         if nm == "expr":
             if expr.groupCount() == 1:
@@ -812,7 +807,7 @@ class Interp:
 
             # Import
             files[fc] = fname
-            m2 = Matcher(g,g.default_rule,fc)
+            m2 = Matcher(g,"prog",fc)
             if not m2.matches():
                 m2.showError()
             for k in range(m2.gr.groupCount()):
