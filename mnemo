@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Any, List, Tuple, Union, Optional
+from typing import Dict, Any, List, Tuple, Union, Optional, cast
 from piraha import Grammar, compileFile, Matcher, Group
 from piraha.colored import colored
 import sys, os
@@ -137,6 +137,10 @@ class Var:
     def storeFinish(self)->None:
         self.finished = True
 
+def groupint(v : Union[Tuple[Group,int],Tuple[Group]])->Tuple[Group,int]:
+    assert len(v) == 2
+    return cast(Tuple[Group,int], v)
+
 thread_seq = 0
 
 class Interp:
@@ -171,8 +175,8 @@ class Interp:
             {"true":Var("true",True,"const"),
              "false":Var("false",False,"const"),
              "none":Var("none",None,"const")}]
-        self.loads : List[Dict[Union[int,str],Union[int,Var]]] = [{}]
-        self.inst : List[Union[Tuple[Group],Tuple[Group,int]]] = []
+        self.loads : List[Dict[Union[int,str],Optional[Union[int,Var]]]] = [{}]
+        self.inst : List[Union[Tuple[Group,int],Tuple[Group]]] = []
         self.indent = 0
         self.delay = 0
         for i in range(gr.groupCount()):
@@ -581,7 +585,7 @@ class Interp:
         self.pc = funinst
         return
 
-    def end_call(self,retval):
+    def end_call(self,retval : Optional[Var])->None:
         self.indent -= 1
         self.pc = self.stack[-1]+1
         retkey = self.rets[-1]
@@ -595,7 +599,8 @@ class Interp:
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call->%s" % (loadstr(retval)),"green"),sep='')
         print(str(self.id),DIV,"end call->%s" % (loadstr(retval)),sep='',file=logfd)
-    def step(self,feedback):
+
+    def step(self,feedback : List[bool]):
         global threads
         assert self.pc >= 0,str(self.pc)
         feedback[0] = False
@@ -629,22 +634,23 @@ class Interp:
                 print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored(s.substring(),"blue"),sep='')
             print(str(self.id),DIV,"line: "+str(s.linenum())," ",s.substring(),sep='',file=logfd)
         if nm == "start_fn":
-            self.pc = self.inst[self.pc][1]+1
+            vv = groupint(self.inst[self.pc])
+            self.pc = vv[1]+1
             return True
         elif nm == "load":
             if s.group(0).getPatternName() == "var":
                 vg = s.group(0)
+                elems : List[Group] = []
                 if vg.group(0).getPatternName() == "name":
                     vname = vg.substring()
-                    elems = []
                 else:
                     elg = vg.group(0)
                     vname = elg.group(0).substring()
-                    elems = []
                     if elg.group(1).getPatternName() == "expr":
                         elems = [elg.group(1)]
                     else:
                         elems = elg.group(1).children
+                var : Var
                 if vname in self.vars[-1]:
                     var = self.vars[-1][vname]
                 elif vname in self.vars[0]:
@@ -696,7 +702,7 @@ class Interp:
                 vname = s.group(0).substring()
                 if op == ":=":
                     self.massert(vname not in self.vars[-1],"Redefinition of "+vname+" at line  "+str(s.linenum()))
-                    var = Var(vname,val)
+                    var = Var("&",vname,val)
                     self.vars[-1][vname] = var
                     self.pc += 1
                     return True
@@ -739,7 +745,8 @@ class Interp:
             if len(self.stack) == 0:
                 return False
             step_info = self.inst[self.pc]
-            endix = step_info[1]
+            assert len(step_info) == 2
+            endix = groupint(step_info)[1]
             start_info = self.inst[endix]
             ends = start_info[0].getPatternName()
             if ends == "start_fn":
@@ -759,7 +766,7 @@ class Interp:
                 self.pc += 1
             elif ends == "load":
                 # This is a while statement
-                self.pc = step_info[1]
+                self.pc = groupint(step_info)[1]
             else:
                 raise Exception(ends)
             return True
@@ -782,13 +789,13 @@ class Interp:
                 self.pc += 1
                 return True
             else:
-                self.pc = self.inst[self.pc][1]
+                self.pc = groupint(self.inst[self.pc])[1]
                 return True
         elif nm == "else":
             self.pc += 1
             return True
         elif nm == "goto":
-            self.pc = self.inst[self.pc][1]
+            self.pc = groupint(self.inst[self.pc])[1]
             return True
         elif nm == "import":
             fname = self.getval(s.group(0))
@@ -833,7 +840,7 @@ class Interp:
             if val == True:
                 self.pc += 1
             elif val == False:
-                self.pc = self.inst[self.pc][1] + 1
+                self.pc = groupint(self.inst[self.pc])[1] + 1
             else:
                 raise Exception(val)
             return True
@@ -841,7 +848,7 @@ class Interp:
             while self.pc < len(self.inst):
                 step_info = self.inst[self.pc]
                 if step_info[0].getPatternName() == "end":
-                    endix = step_info[1]
+                    endix = groupint(step_info)[1]
                     start_info = self.inst[endix]
                     if start_info[0].getPatternName() == "for":
                         #ends = start_info[0].getPatternName()
