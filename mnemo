@@ -2,6 +2,7 @@
 from typing import Dict, Any, List, Tuple, Union, Optional, cast
 from piraha import Grammar, compileFile, Matcher, Group
 from piraha.colored import colored
+from piraha.here import here
 import sys, os
 from random import randint, seed, random
 import argparse
@@ -138,7 +139,13 @@ class Var:
         self.finished = True
 
 def groupint(v : Union[Tuple[Group,int],Tuple[Group]])->Tuple[Group,int]:
+    """
+    This is a specialized casting function.
+    Without iit, mypy will assert that v[1] is invalid.
+    """
     assert len(v) == 2
+    # Note that cast will trust us regardless of the type we specify
+    # so we need to make sure it's actually allowed
     return cast(Tuple[Group,int], v)
 
 thread_seq = 0
@@ -293,7 +300,7 @@ class Interp:
                 self.inst[endptr] = (self.inst[endptr][0], fstart) # point to start
         else:
             raise Exception(nm)
-    def getval(self,expr : Group):
+    def getval(self,expr : Group)->Any:
         nm = expr.getPatternName()
         if nm == "expr":
             if expr.groupCount() == 1:
@@ -382,10 +389,10 @@ class Interp:
                 raise Exception(vnm)
             return ar
         elif nm == "pair":
-            v0 = self.getval(expr.group(0))
-            v1 = self.getval(expr.group(1))
+            v0 : str = self.getval(expr.group(0))
+            v1 : Var = self.getval(expr.group(1))
             var1 = Var('&',v1,"const")
-            return [v0, var1]
+            return (v0, var1)
         elif nm == "memcall":
             dvar = self.getval(expr.group(0))
             return dvar[expr.group(1).substring()]
@@ -964,34 +971,39 @@ def addgr(gr,sgr,ss):
     gr.children += [g]
     return g
 
-while run_step():
-    pass
-
-if "main" in interp.vars[0]:
-
-    # Need to re-add the thread before calling main
-    threads += [interp]
-
-    mainloc = interp.addr(interp.vars[0]["main"].get())
-    maing = interp.inst[mainloc-1][0]
-    main_arg_count = maing.group(1).groupCount()
-    #interp.vars += [{}]
-    expr = Group("fun","",0,0)
-    addgr(expr,"name","main")
-    vals = addgr(expr,"vals","")
-    if main_arg_count == 1:
-        alloc = addgr(vals,"alloc","")
-        addgr(alloc,"qual","const")
-        array = addgr(alloc,"array","")
-        for a in sys.argv:
-            addgr(array,"str",'"'+a+'"')
-    interp.start_call(expr,0)
+def main():
+    global threads
     while run_step():
         pass
-    retval = interp.loads[-1][0]
-    if retval is None:
-        exit(0)
-    elif type(retval) == int:
-        exit(retval)
-    else:
-        raise Exception("return from main not an int: "+str(retval))
+
+    if "main" in interp.vars[0]:
+
+        # Need to re-add the thread before calling main
+        threads += [interp]
+
+        mainloc = interp.addr(interp.vars[0]["main"].get())
+        maing = interp.inst[mainloc-1][0]
+        main_arg_count = maing.group(1).groupCount()
+        #interp.vars += [{}]
+        expr = Group("fun","",0,0)
+        addgr(expr,"name","main")
+        vals = addgr(expr,"vals","")
+        if main_arg_count == 1:
+            alloc = addgr(vals,"alloc","")
+            addgr(alloc,"qual","const")
+            array = addgr(alloc,"array","")
+            for a in sys.argv:
+                addgr(array,"str",'"'+a+'"')
+        interp.start_call(expr,0)
+        while run_step():
+            pass
+        retval = interp.loads[-1][0]
+        if retval is None:
+            exit(0)
+        elif type(retval) == int:
+            exit(retval)
+        else:
+            raise Exception("return from main not an int: "+str(retval))
+
+if __name__ == "__main__":
+    main()

@@ -1,9 +1,11 @@
 fun main()
+    # Create an array of 3 atomics
     safe v := new atomic[9,2,3]
     assert(v[0] == 9)
     assert(v[1] == 2)
     assert(v[2] == 3)
     assert(len(v) == 3)
+    # CAS = Compare and set
     if CAS(v,9,3)
         println("CAS!")
     else
