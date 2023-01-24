@@ -36,8 +36,9 @@ for f in os.listdir("."):
             print(colored("Skipping:","red"),f)
             continue
         print(colored("Running:","blue"),f)
-        p = s.Popen(["./mnemo","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
+        p = s.Popen([sys.executable,"-c","from mnemo import main; main()","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
         o, e = p.communicate(0)
+        print(colored(e,"red"),end='')
         has, hasnot = output[f]
         for h in has:
             if h not in o:
