@@ -167,7 +167,7 @@ class Interp:
     def done(self)->bool:
         return len(self.stack) == 0
 
-    def __init__(self,gr : Group):
+    def __init__(self,gr : Group)->None:
         global thread_seq
 
         self.id = thread_seq
@@ -199,7 +199,7 @@ class Interp:
 
         self.load_sys_functions(os.path.join(mnemo_path[0],"lib/sys.mn"))
 
-    def load_sys_functions(self,fname : str):
+    def load_sys_functions(self,fname : str)->None:
         with open(fname,"r") as fd:
             fc = fd.read()
         files[fc] = fname
