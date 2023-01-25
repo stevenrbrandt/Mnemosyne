@@ -25,6 +25,6 @@ setup(
   },
   package_data = {
     'piraha': ['py.typed','mnemo.peg'],
-  }
+  },
   install_requires=['piraha']
 )
