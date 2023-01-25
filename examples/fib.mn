@@ -20,8 +20,8 @@ fun fib(n)
 end
 
 fun main(args)
-    const t1 := spawn(fib,5)
-    const t2 := spawn(fib,5)
+    const t1 := spawn(fib,3)
+    const t2 := spawn(fib,3)
     assert(8 == fib(6))
     join(t1)
     join(t2)

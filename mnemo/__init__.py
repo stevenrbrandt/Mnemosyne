@@ -609,7 +609,7 @@ class Interp:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call->%s" % (loadstr(retval)),"green"),sep='')
         print(str(self.id),DIV,"end call->%s" % (loadstr(retval)),sep='',file=logfd)
 
-    def step(self,feedback : List[bool]):
+    def step(self,feedback : List[bool])->bool:
         global threads
         assert self.pc >= 0,str(self.pc)
         feedback[0] = False
@@ -622,26 +622,28 @@ class Interp:
             self.delay -= 1
             return True
         s = self.inst[self.pc][0]
+        fn = os.path.basename(files.get(s.text,"?"))
         nm = s.getPatternName()
+        pre = f"{fn}:{s.linenum()},"
         if nm == "load":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
-            print(str(self.id),DIV,"line: "+str(s.linenum())," ","load: "+s.substring(),sep='',end=' ',file=logfd)
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
+            print(str(self.id),DIV,pre," ","load: "+s.substring(),sep='',end=' ',file=logfd)
         elif nm == "start_fn":
             pass #print(colored("step: "+str(self.pc),"green"),colored("define function: "+s.substring(),"blue"))
             feedback[0] = True
         elif nm == "store":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("finish: "+s.substring(),"blue"),sep='')
-            print(str(self.id)+":: ","line: "+str(s.linenum())," ","finish: "+s.substring(),sep='',file=logfd)
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored("finish: "+s.substring(),"blue"),sep='')
+            print(str(self.id)+":: ", pre," ","finish: "+s.substring(),sep='',file=logfd)
         elif nm == "assign":
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored("start: "+s.substring(),"blue"),sep='')
-            print(str(self.id),DIV,"line: "+str(s.linenum())," ","start: "+s.substring(),sep='',file=logfd)
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored("start: "+s.substring(),"blue"),sep='')
+            print(str(self.id),DIV, pre," ","start: "+s.substring(),sep='',file=logfd)
         else:
             if self.trace:
-                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored("line: "+str(s.linenum()),"green")," ",colored(s.substring(),"blue"),sep='')
-            print(str(self.id),DIV,"line: "+str(s.linenum())," ",s.substring(),sep='',file=logfd)
+                print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored(s.substring(),"blue"),sep='')
+            print(str(self.id),DIV, pre," ",s.substring(),sep='',file=logfd)
         if nm == "start_fn":
             vv = groupint(self.inst[self.pc])
             self.pc = vv[1]+1
