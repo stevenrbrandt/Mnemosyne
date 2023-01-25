@@ -30,14 +30,20 @@ output = {
     "sp.mn":(["len: 3","a: 8"],["Assertion failure"]),
 }
 
+once = True
+
 for f in os.listdir("."):
     if re.match(r'.*\.mn$',f):
         if f not in output:
             print(colored("Skipping:","red"),f)
             continue
         print(colored("Running:","blue"),f)
-        p = s.Popen([sys.executable,"-c","from mnemo import main; main()","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
+        os.environ["PYTHONPATH"]=".."
+        p = s.Popen([sys.executable,"-c","from mnemo import main, __file__; print('file:',__file__); main()","--bw",f], stdout=s.PIPE, stderr=s.PIPE, universal_newlines=True)
         o, e = p.communicate(0)
+        if once:
+            print(o.split('\n')[0])
+            once = False
         print(colored(e,"red"),end='')
         has, hasnot = output[f]
         for h in has:
