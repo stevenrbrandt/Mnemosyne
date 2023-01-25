@@ -50,8 +50,11 @@ INDENT = "  "
 
 threads = []
 
+my_dir = os.path.dirname(os.path.realpath(__file__))
+peg_file = os.path.join(my_dir, "mnemo.peg")
+
 g = Grammar()
-compileFile(g,os.path.join(mnemo_path[0],"mnemo.peg"))
+compileFile(g,os.path.join(mnemo_path[0],peg_file))
 with open(pres.file[0]) as fd:
     fc = fd.read()
 k : str = fc
