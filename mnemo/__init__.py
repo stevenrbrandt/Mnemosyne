@@ -41,7 +41,7 @@ print("seed=%d" % sval,file=logfd)
 seed(sval)
 debug = False
 
-path_to_mnemo = os.path.dirname(os.path.realpath(sys.argv[0]))
+path_to_mnemo = os.path.dirname(os.path.realpath(__file__))
 mnemo_path = [path_to_mnemo, "."]
 if "MNEMO_PATH" in os.environ:
     mnemo_path += os.environ["MNEMO_PATH"].split(":")
@@ -50,8 +50,7 @@ INDENT = "  "
 
 threads = []
 
-my_dir = os.path.dirname(os.path.realpath(__file__))
-peg_file = os.path.join(my_dir, "mnemo.peg")
+peg_file = os.path.join(path_to_mnemo, "mnemo.peg")
 
 g = Grammar()
 compileFile(g,os.path.join(mnemo_path[0],peg_file))
@@ -200,7 +199,7 @@ class Interp:
                 fnm = gm.group(0).substring()
                 self.vars[0][fnm] = Var("fname",Func(i+1),"const")
 
-        self.load_sys_functions(os.path.join(mnemo_path[0],"lib/sys.mn"))
+        self.load_sys_functions(os.path.join(mnemo_path[0],os.path.join(path_to_mnemo,"lib","sys.mn")))
 
     def load_sys_functions(self,fname : str)->None:
         with open(fname,"r") as fd:

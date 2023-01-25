@@ -24,7 +24,7 @@ setup(
     'console_scripts' : ['mnemo=mnemo:main'],
   },
   package_data = {
-    'piraha': ['py.typed','mnemo.peg'],
+    'piraha': ['py.typed','mnemo.peg','lib'],
   },
   include_package_data=True,
   install_requires=['piraha']
