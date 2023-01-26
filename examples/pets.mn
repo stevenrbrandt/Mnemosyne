@@ -1,0 +1,35 @@
+fun flag(mine, theirs, msg)
+    atomic i := 0
+    while i < 5
+        mine[0] = true
+        while theirs[0] == true
+        end
+        println(msg," ",i)
+        i = i + 1
+        mine[0] = false
+    end
+end
+
+fun flag2(mine, theirs, msg)
+    atomic i := 0
+    while i < 5
+        mine[0] = true
+        while theirs[0] == true
+            mine[0] = false
+        end
+        if mine[0] == true
+            println(msg," ",i)
+            mine[0] = false
+            i = i + 1
+        end
+    end
+end
+
+fun main()
+    atomic alice := new atomic[0]
+    atomic bob := new atomic[0]
+    const t1 := spawn(flag, alice, bob, "Alice's Pet Feeds")
+    const t2 := spawn(flag, bob, alice, "Bob's Pet Feeds")
+    join(t1)
+    join(t2)
+end

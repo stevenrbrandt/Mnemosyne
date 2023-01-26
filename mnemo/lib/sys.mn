@@ -28,6 +28,9 @@ end
 fun type(v)
     return pyexec("retval = type(args[1]).__name__",v)
 end
+fun int(v)
+    return pyexec("retval = int(args[1])",v)
+end
 fun min(a,b)
     if a < b
         return a

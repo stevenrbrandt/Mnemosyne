@@ -1,0 +1,38 @@
+atomic mut := new atomic {
+    "flag" : new atomic [0,0],
+    "victim" : 0 
+}
+
+fun lock()
+    atomic me := ThreadID()
+    assert((me == 0) or (me == 1))
+    atomic other := 1 - ThreadID()
+    mut["flag"][me] = 1
+    mut["victim"] = me
+    while (mut["flag"][other] == 1) and (mut["victim"] == me)
+    end
+end
+
+fun unlock()
+    atomic me := ThreadID()
+    mut["flag"][me] = 1
+end
+
+atomic counter := 0
+
+fun incr()
+    for i in 0 to 5
+        lock()
+        println(ThreadID()," lock success number ",i)
+        for j in 0 to randint(0,9) end
+        unlock()
+        for j in 0 to randint(0,9) end
+    end
+end
+
+fun main()
+    lock()
+    const t1 := spawn(incr)
+    incr()
+    join(t1)
+end

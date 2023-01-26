@@ -35,8 +35,10 @@ end
 
 fun main(args)
     const n := len(args)
-    if args[n-1] == "nolock"
-        nolock = true
+    if n > 0
+        if args[n-1] == "nolock"
+            nolock = true
+        end
     end
     for i in 0 to 10
         spawn(thread)

@@ -6,6 +6,7 @@ from piraha.here import here
 import sys, os, re
 from random import randint, seed, random
 import argparse
+from .version import __version__
 
 def print_debug_help():
     print("""
@@ -28,10 +29,12 @@ parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
 parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
 parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
 parser.add_argument('--no-trace', action='store_true', default=False, help='disable tracing')
-parser.add_argument('--dbg', action='store_true', default=False, help='turn on debugging')
+parser.add_argument('--debug', action='store_true', default=False, help='enable breakpoints')
 parser.add_argument('--parse', action='store_true', default=False, help='parse only')
 parser.add_argument('--inst', action='store_true', default=False, help='print instructions only')
-parser.add_argument('file', type=str, help='A Mnemosyne source file',nargs='+')
+parser.add_argument('--opts', type=str, nargs="+", default=[], help='program args')
+parser.add_argument('--steps', type=int, default=1000000, help='program args')
+parser.add_argument('file', type=str, help='A Mnemosyne source file', nargs='+')
 pres=parser.parse_args(sys.argv[1:])
 
 def toint(n : Any)->int:
@@ -46,7 +49,6 @@ logfd = open("log.txt","w")
 sval = pres.seed
 print("seed=%d" % sval,file=logfd)
 seed(sval)
-#debug = False
 
 path_to_mnemo = os.path.dirname(os.path.realpath(__file__))
 mnemo_path = [path_to_mnemo, "."]
@@ -138,7 +140,7 @@ class Var:
     def __repr__(self)->str:
         if type(self.val) in [str] or self.val is None:
             return "Var(%s,%s,'%s')" % (self.qual, type(self.val).__name__, self.val)
-        elif type(self.val) in [int, float, Func] or self.val is None:
+        elif type(self.val) in [int, float, Func, list] or self.val is None:
             return "Var(%s,%s,%s)" % (self.qual, type(self.val).__name__, self.val)
         else:
             return "Var(%s,%s)" % (self.qual, type(self.val).__name__ )
@@ -187,7 +189,11 @@ class Interp:
         self.vars : List[Dict[str,Var]] = [
             {"true":Var("true",True,"const"),
              "false":Var("false",False,"const"),
-             "none":Var("none",None,"const")}]
+             "none":Var("none",None,"const"),
+             "__version__":Var("__version__",__version__,"const"),
+             "__python__":Var("__python__",sys.executable,"const"),
+             "__mnemo__":Var("__mnemo__",__file__,"const"),
+             }]
         self.loads : List[Dict[Union[int,str],Optional[Union[int,Var]]]] = [{}]
         self.inst : List[Union[Tuple[Group,int],Tuple[Group]]] = []
         self.indent = 0
@@ -442,7 +448,6 @@ class Interp:
         self.start_call2(expr,retkey,args)
 
     def start_call2(self,expr : Group,retkey : Union[int,str],args : List[str])->None:
-        #global threads, debug
         ####
         fnm = expr.group(0).substring()
         if fnm == "print" or fnm == "println":
@@ -483,8 +488,9 @@ class Interp:
             newthread = Interp(self.gr, self.runtime, self.trace)
             newthread.trace = self.runtime.debug
             newthread.indent = 0
-            for k in self.vars[0].keys():
-                newthread.vars[0][k] = self.vars[0][k]
+            #for k in self.vars[0].keys():
+            #    newthread.vars[0][k] = self.vars[0][k]
+            newthread.vars[0] = self.vars[0]
             newthread.pc = len(self.inst)
 
             # Prepare spawn return location
@@ -510,8 +516,7 @@ class Interp:
             return
         elif fnm == "brk":
             self.pc += 1
-            if pres.dbg:
-                self.runtime.debug = True
+            self.runtime.stepmode = True
             return
         elif fnm == "len":
             self.pc += 1
@@ -567,8 +572,6 @@ class Interp:
             raise Exception(mfnm)
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
-        if pres.dbg and fname == "main":
-            self.runtime.debug = True
         print(str(self.id),DIV,"start call: ",fname,sep='',file=logfd)
         self.indent += 1
         funval = self.inst[funinst-1][0]
@@ -887,13 +890,26 @@ class Interp:
             return True
         raise Exception(s.dump())
         return False
+    def dump(self):
+        print(colored("thread id:","cyan"),self.id)
+        for fno in range(len(self.vars)):
+            print(colored(" frame:","green"),fno)
+            f = self.vars[fno]
+            for var in f:
+                print(colored("  var:","yellow"),var,"->",f[var])
 
 class Runtime:
-    def __init__(self, src_file, trace : bool=True)->None:
+    def dump(self):
+        for thread in self.threads:
+            thread.dump()
+
+    def __init__(self, src_file, trace : bool=True, debug : bool=False)->None:
+        self.stepmode = False
         self.trace = trace
-        self.debug = False
+        self.debug = debug
         self.threads : List[Interp] = []
         self.thread_seq = 0
+        self.stop = False
 
         g = Grammar()
         compileFile(g,os.path.join(mnemo_path[0],peg_file))
@@ -912,7 +928,9 @@ class Runtime:
             raise Exception()
 
     def run_step(self):
-        #global debug
+        if self.stop:
+            print(colored("Breakpoint","red"))
+            return False
         while True:
             lo = 0
             hi = len(self.threads)-1
@@ -925,15 +943,15 @@ class Runtime:
 
             # The debugger
             stack_wait = 0
-            if self.debug:
+            if self.debug and self.stepmode:
                 while True:
                     print('$ ',end='')
                     sys.stdout.flush()
 
-                    cmd = sys.stdin.readline()
+                    cmd = sys.stdin.readline().strip()
 
                     if cmd == "":
-                        self.debug = False
+                        self.stepmode = False
                         break
 
                     rm = re.match(r'\s*stack\b',cmd)
@@ -944,7 +962,7 @@ class Runtime:
 
                     rm = re.match(r'\s*(continue|cont|go)\b',cmd)
                     if rm:
-                        self.debug = False
+                        self.stepmode = False
                         break
 
                     rm = re.match(r'\s*print\s*(\w+)',cmd)
@@ -983,8 +1001,12 @@ class Runtime:
                             break
                         continue
 
+                    if cmd == "dump":
+                        self.dump()
+                        continue
+
                     print_debug_help()
-                    print(colored("???","red"))
+                    print(colored(f"Unknwon Cmd:'{cmd}'","red"))
 
             thread = self.threads[tno]
             feedback = [False]
@@ -1013,7 +1035,7 @@ def main():
     #global threads
     retval : Optional[int] = 0
 
-    runtime = Runtime(pres.file[0], trace = not pres.no_trace)
+    runtime = Runtime(pres.file[0], trace = not pres.no_trace, debug = pres.debug)
     if pres.parse:
         print(colored("Parse Complete","green"))
         exit(0)
@@ -1021,6 +1043,9 @@ def main():
     steps = 0
     while runtime.run_step():
         steps += 1
+        if steps >= pres.steps:
+            print(colored("Maximum steps reached:","red"), pres.steps)
+            runtime.stop = True
 
     if "main" in runtime.interp.vars[0]:
 
@@ -1037,12 +1062,19 @@ def main():
             alloc = addgr(vals,"alloc","")
             addgr(alloc,"qual","const")
             array = addgr(alloc,"array","")
-            for a in sys.argv:
+            for a in pres.opts:
                 addgr(array,"str",'"'+a+'"')
         runtime.interp.start_call(expr,0)
         while runtime.run_step():
             steps += 1
-        retval = toint(runtime.interp.loads[-1][0])
+            if steps >= pres.steps:
+                print(colored("Maximum steps reached:","red"),pres.steps)
+                runtime.stop = True
+        if runtime.stop:
+            runtime.dump()
+            retval = 123
+        else:
+            retval = toint(runtime.interp.loads[-1][0])
 
     print(colored("Program Steps:","green"),steps)
     if retval is None:
