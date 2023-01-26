@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Tuple, Union, Optional, cast
 from piraha import Grammar, compileFile, Matcher, Group
 from piraha.colored import colored
 from piraha.here import here
-import sys, os
+import sys, os, re
 from random import randint, seed, random
 import argparse
 
@@ -27,11 +27,18 @@ go or continue
 parser = argparse.ArgumentParser(description='The Mnemosyne Interpreter')
 parser.add_argument('--seed', type=int, default=randint(0,1000000), help='set the random seed')
 parser.add_argument('--bw', action='store_true', default=False, help='disable text coloring')
+parser.add_argument('--no-trace', action='store_true', default=False, help='disable tracing')
 parser.add_argument('--dbg', action='store_true', default=False, help='turn on debugging')
 parser.add_argument('--parse', action='store_true', default=False, help='parse only')
 parser.add_argument('--inst', action='store_true', default=False, help='print instructions only')
 parser.add_argument('file', type=str, help='A Mnemosyne source file',nargs='+')
 pres=parser.parse_args(sys.argv[1:])
+
+def toint(n : Any)->int:
+    if n is None:
+        return 0
+    assert type(n) == int
+    return cast(int, n)
 
 DIV = '::'
 files : Dict[str,str] = {}
@@ -39,7 +46,7 @@ logfd = open("log.txt","w")
 sval = pres.seed
 print("seed=%d" % sval,file=logfd)
 seed(sval)
-debug = False
+#debug = False
 
 path_to_mnemo = os.path.dirname(os.path.realpath(__file__))
 mnemo_path = [path_to_mnemo, "."]
@@ -48,7 +55,7 @@ if "MNEMO_PATH" in os.environ:
 
 INDENT = "  "
 
-threads = []
+#threads = []
 
 peg_file = os.path.join(path_to_mnemo, "mnemo.peg")
 
@@ -59,13 +66,6 @@ with open(pres.file[0]) as fd:
 k : str = fc
 v : str = pres.file[0]
 files[k] = v
-m = Matcher(g,"prog",fc)
-if m.matches():
-    if pres.parse:
-        exit(0)
-else:
-    m.showError()
-    raise Exception()
 
 def filename(group:Group)->str:
     return files[group.text]
@@ -136,7 +136,12 @@ class Var:
         else:
             raise Exception(self.qual)
     def __repr__(self)->str:
-        return "Var(%s,%s)" % (self.qual, type(self.val).__name__ )
+        if type(self.val) in [str] or self.val is None:
+            return "Var(%s,%s,'%s')" % (self.qual, type(self.val).__name__, self.val)
+        elif type(self.val) in [int, float, Func] or self.val is None:
+            return "Var(%s,%s,%s)" % (self.qual, type(self.val).__name__, self.val)
+        else:
+            return "Var(%s,%s)" % (self.qual, type(self.val).__name__ )
     def storeFinish(self)->None:
         self.finished = True
 
@@ -149,8 +154,6 @@ def groupint(v : Union[Tuple[Group,int],Tuple[Group]])->Tuple[Group,int]:
     # Note that cast will trust us regardless of the type we specify
     # so we need to make sure it's actually allowed
     return cast(Tuple[Group,int], v)
-
-thread_seq = 0
 
 class Interp:
     def getvar(self,vname : str)->Var:
@@ -169,13 +172,14 @@ class Interp:
     def done(self)->bool:
         return len(self.stack) == 0
 
-    def __init__(self,gr : Group)->None:
-        global thread_seq
+    def __init__(self,gr : Group, runtime : 'Runtime', trace : bool)->None:
 
-        self.id = thread_seq
-        thread_seq += 1
+        self.runtime = runtime
+        assert runtime is not None, "No runtime supplied to interpreter"
 
-        self.trace = True
+        self.id = self.runtime.thread_seq
+        self.runtime.thread_seq += 1
+        self.trace = trace
         self.gr = gr
         self.pc = -1
         self.stack : List[int] = []
@@ -438,7 +442,7 @@ class Interp:
         self.start_call2(expr,retkey,args)
 
     def start_call2(self,expr : Group,retkey : Union[int,str],args : List[str])->None:
-        global threads, debug
+        #global threads, debug
         ####
         fnm = expr.group(0).substring()
         if fnm == "print" or fnm == "println":
@@ -476,8 +480,8 @@ class Interp:
             return
         elif fnm == "spawn":
             vals = expr.group(1)
-            newthread = Interp(self.gr)
-            newthread.trace = debug
+            newthread = Interp(self.gr, self.runtime, self.trace)
+            newthread.trace = self.runtime.debug
             newthread.indent = 0
             for k in self.vars[0].keys():
                 newthread.vars[0][k] = self.vars[0][k]
@@ -488,7 +492,7 @@ class Interp:
                 newthread.loads[-1][vals.group(1).start] = newthread.id # vid
 
             newthread.start_call2(vals,expr.start,args[1:])
-            threads += [newthread]
+            self.runtime.threads += [newthread]
             self.pc += 1
             vid = Var("id",newthread.id,"const")
             self.loads[-1][retkey] = newthread.id # vid
@@ -497,7 +501,7 @@ class Interp:
             self.pc += 1
             pid = args[0]
             found : bool = False
-            for th in threads:
+            for th in self.runtime.threads:
                 if pid == th.id:
                     found = True
                     break
@@ -507,7 +511,7 @@ class Interp:
         elif fnm == "brk":
             self.pc += 1
             if pres.dbg:
-                debug = True
+                self.runtime.debug = True
             return
         elif fnm == "len":
             self.pc += 1
@@ -520,7 +524,7 @@ class Interp:
             return
         elif fnm == "NumThreads":
             self.pc += 1
-            self.loads[-1][retkey] = len(threads)
+            self.loads[-1][retkey] = len(self.runtime.threads)
             return
         elif fnm == "CAS":
             self.pc += 1
@@ -564,7 +568,7 @@ class Interp:
         if self.trace:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("start call: ","green"),colored(fname,"blue"),sep='')
         if pres.dbg and fname == "main":
-            debug = True
+            self.runtime.debug = True
         print(str(self.id),DIV,"start call: ",fname,sep='',file=logfd)
         self.indent += 1
         funval = self.inst[funinst-1][0]
@@ -577,7 +581,6 @@ class Interp:
         n1 = argdefs.groupCount()
         #n2 = argvals.groupCount()+add_self
         n2 = len(args)+add_self
-        print("n2 args:",args)
         self.massert(n1 == n2,"Arity mismatch for '"+fname+"()' %d != %d" % (n1,n2))
         self.vars += [{}]
         for i in range(argdefs.groupCount()):
@@ -609,8 +612,13 @@ class Interp:
             print(INDENT * self.indent,colored(str(self.id)+": ","blue"),colored("end call->%s" % (loadstr(retval)),"green"),sep='')
         print(str(self.id),DIV,"end call->%s" % (loadstr(retval)),sep='',file=logfd)
 
+    def screen_log(self, fn : str, linenum : int, nm : str, msg : str, logfd):
+        pre = f"{fn}:{linenum},"
+        if self.trace:
+            print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored("load: "+msg,"blue"),sep='',end=' ')
+        print(str(self.id),DIV,pre," ","load: "+msg,sep='',end=' ',file=logfd)
+
     def step(self,feedback : List[bool])->bool:
-        global threads
         assert self.pc >= 0,str(self.pc)
         feedback[0] = False
         if self.pc >= len(self.inst):
@@ -624,8 +632,11 @@ class Interp:
         s = self.inst[self.pc][0]
         fn = os.path.basename(files.get(s.text,"?"))
         nm = s.getPatternName()
+        self.screen_log(fn, s.linenum(), nm, s.substring(), logfd)
         pre = f"{fn}:{s.linenum()},"
-        if nm == "load":
+        if True:
+            pass # yyy
+        elif nm == "load":
             if self.trace:
                 print(INDENT*self.indent,colored(str(self.id)+": ","blue"),colored(pre, "green")," ",colored("load: "+s.substring(),"blue"),sep='',end=' ')
             print(str(self.id),DIV,pre," ","load: "+s.substring(),sep='',end=' ',file=logfd)
@@ -877,98 +888,121 @@ class Interp:
         raise Exception(s.dump())
         return False
 
+class Runtime:
+    def __init__(self, src_file, trace : bool=True)->None:
+        self.trace = trace
+        self.debug = False
+        self.threads : List[Interp] = []
+        self.thread_seq = 0
+
+        g = Grammar()
+        compileFile(g,os.path.join(mnemo_path[0],peg_file))
+        with open(src_file) as fd:
+            fc = fd.read()
+        k : str = fc
+        v : str = src_file
+        files[k] = v
+        m = Matcher(g,"prog",fc)
+        if m.matches():
+            self.interp = Interp(m.gr, self, self.trace)
+            self.threads = [self.interp]
+            self.interp.pc = 0
+        else:
+            m.showError()
+            raise Exception()
+
+    def run_step(self):
+        #global debug
+        while True:
+            lo = 0
+            hi = len(self.threads)-1
+            if hi < 0:
+                return False
+            if lo == hi:
+                tno = lo
+            else:
+                tno = randint(lo, hi)
+
+            # The debugger
+            stack_wait = 0
+            if self.debug:
+                while True:
+                    print('$ ',end='')
+                    sys.stdout.flush()
+
+                    cmd = sys.stdin.readline()
+
+                    if cmd == "":
+                        self.debug = False
+                        break
+
+                    rm = re.match(r'\s*stack\b',cmd)
+                    if rm:
+                        for th in self.threads:
+                            th.stack_trace()
+                        continue
+
+                    rm = re.match(r'\s*(continue|cont|go)\b',cmd)
+                    if rm:
+                        self.debug = False
+                        break
+
+                    rm = re.match(r'\s*print\s*(\w+)',cmd)
+                    if rm:
+                        vname = rm.group(1)
+                        for th in self.threads:
+                            if vname in th.vars[0]:
+                                print("thread:",th.id,"global:",vname,"=",end=' ')
+                                th.vars[0][vname].show()
+                            elif vname in th.vars[-1]:
+                                print("thread:",th.id,"local:",vname,"=",end=' ')
+                                th.vars[-1][vname].show()
+                        continue
+
+                    rm = re.match(r'\s*pc\b',cmd)
+                    if rm:
+                        for th in self.threads:
+                            ex_item = th.inst[th.pc][0]
+                            print("thread:",th.id,"line:",ex_item.linenum(),"->",ex_item.substring())
+                        continue
+
+                    rm = re.match(r'\s*step\s+(\d+)',cmd)
+                    if rm:
+                        tnum = int(rm.group(1))
+                        tinp = None
+                        for k in range(len(self.threads)):
+                            if self.threads[k].id == tnum:
+                                tinp = k
+                        if tinp is None:
+                            print(colored("No such thread: "+rm.group(1),"red"),end=' threads: ')
+                            for t in self.threads:
+                                print(t.id,end=' ')
+                            print()
+                        else:
+                            tno = tinp
+                            break
+                        continue
+
+                    print_debug_help()
+                    print(colored("???","red"))
+
+            thread = self.threads[tno]
+            feedback = [False]
+            if not thread.step(feedback):
+                del self.threads[tno]
+            else:
+                while feedback[0]:
+                    if not thread.step(feedback):
+                        break
+                return True
+
 ## BEGIN MAIN CODE
 
-interp = Interp(m.gr)
+#interp = Interp(m.gr)
 
-threads += [interp]
+#threads += [interp]
 
-interp.pc = 0
-
-def run_step():
-    global debug
-    while True:
-        lo = 0
-        hi = len(threads)-1
-        if hi < 0:
-            return False
-        if lo == hi:
-            tno = lo
-        else:
-            tno = randint(lo, hi)
-
-        # The debugger
-        stack_wait = 0
-        if debug:
-            while True:
-                print('$ ',end='')
-                sys.stdout.flush()
-
-                cmd = sys.stdin.readline()
-
-                if cmd == "":
-                    debug = False
-                    break
-
-                rm = re.match(r'\s*stack\b',cmd)
-                if rm:
-                    for th in threads:
-                        th.stack_trace()
-                    continue
-
-                rm = re.match(r'\s*(continue|cont|go)\b',cmd)
-                if rm:
-                    debug = False
-                    break
-
-                rm = re.match(r'\s*print\s*(\w+)',cmd)
-                if rm:
-                    vname = rm.group(1)
-                    for th in threads:
-                        if vname in th.vars[0]:
-                            print("thread:",th.id,"global:",vname,"=",end=' ')
-                            th.vars[0][vname].show()
-                        elif vname in th.vars[-1]:
-                            print("thread:",th.id,"local:",vname,"=",end=' ')
-                            th.vars[-1][vname].show()
-                    continue
-
-                rm = re.match(r'\s*pc\b',cmd)
-                if rm:
-                    for th in threads:
-                        ex_item = th.inst[th.pc][0]
-                        print("thread:",th.id,"line:",ex_item.linenum(),"->",ex_item.substring())
-                    continue
-
-                rm = re.match(r'\s*step\s+(\d+)',cmd)
-                if rm:
-                    tnum = int(rm.group(1))
-                    tinp = None
-                    for k in range(len(threads)):
-                        if threads[k].id == tnum:
-                            tinp = k
-                    if tinp is None:
-                        print(colored("No such thread: "+rm.group(1),"red"),end=' threads: ')
-                        for t in threads:
-                            print(t.id,end=' ')
-                        print()
-                    else:
-                        tno = tinp
-                        break
-                    continue
-
-                print_debug_help()
-                print(colored("???","red"))
-
-        thread = threads[tno]
-        feedback = [False]
-        if not thread.step(feedback):
-            del threads[tno]
-        else:
-            while feedback[0]:
-                if not thread.step(feedback):
-                    break
-            return True
+#interp.pc = 0
 
 def addgr(gr,sgr,ss):
     g = Group(sgr,ss,0,len(ss))
@@ -976,19 +1010,26 @@ def addgr(gr,sgr,ss):
     return g
 
 def main():
-    global threads
-    while run_step():
-        pass
+    #global threads
+    retval : Optional[int] = 0
 
-    if "main" in interp.vars[0]:
+    runtime = Runtime(pres.file[0], trace = not pres.no_trace)
+    if pres.parse:
+        print(colored("Parse Complete","green"))
+        exit(0)
+
+    steps = 0
+    while runtime.run_step():
+        steps += 1
+
+    if "main" in runtime.interp.vars[0]:
 
         # Need to re-add the thread before calling main
-        threads += [interp]
+        runtime.threads += [runtime.interp]
 
-        mainloc = interp.addr(interp.vars[0]["main"].get())
-        maing = interp.inst[mainloc-1][0]
+        mainloc = runtime.interp.addr(runtime.interp.vars[0]["main"].get())
+        maing = runtime.interp.inst[mainloc-1][0]
         main_arg_count = maing.group(1).groupCount()
-        #interp.vars += [{}]
         expr = Group("fun","",0,0)
         addgr(expr,"name","main")
         vals = addgr(expr,"vals","")
@@ -998,16 +1039,17 @@ def main():
             array = addgr(alloc,"array","")
             for a in sys.argv:
                 addgr(array,"str",'"'+a+'"')
-        interp.start_call(expr,0)
-        while run_step():
-            pass
-        retval = interp.loads[-1][0]
-        if retval is None:
-            exit(0)
-        elif type(retval) == int:
-            exit(retval)
-        else:
-            raise Exception("return from main not an int: "+str(retval))
+        runtime.interp.start_call(expr,0)
+        while runtime.run_step():
+            steps += 1
+        retval = toint(runtime.interp.loads[-1][0])
+
+    print(colored("Program Steps:","green"),steps)
+    if retval is None:
+        return 0
+    else:
+        return retval
 
 if __name__ == "__main__":
-    main()
+    rc = main()
+    exit(rc)

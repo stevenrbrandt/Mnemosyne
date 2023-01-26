@@ -1,4 +1,3 @@
-from "lib/join.mn" import join
 safe val := new safe[0]
 atomic msg := ""
 

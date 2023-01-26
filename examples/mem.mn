@@ -1,5 +1,3 @@
-from "lib/join.mn" import join
-
 safe val := 0
 atomic msg := ""
 

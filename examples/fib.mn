@@ -1,5 +1,3 @@
-from "lib/join.mn" import join
-
 fun foo()
     println("Fib!")
 end
